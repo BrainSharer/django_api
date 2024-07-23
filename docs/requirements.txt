@@ -1,0 +1,7 @@
+Django==3.2.15
+django-background-tasks
+djangorestframework
+django-mysql
+pandas
+django-plotly-dash
+plotly

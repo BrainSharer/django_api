@@ -1,0 +1,85 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" type="text/css" href="{% static "admin/css/changelists.css" %}">
+  {% if cl.formset %}
+    <link rel="stylesheet" type="text/css" href="{% static "admin/css/forms.css" %}">
+  {% endif %}
+  {% if cl.formset or action_form %}
+    <script type="text/javascript" src="{% url 'admin:jsi18n' %}"></script>
+  {% endif %}
+  {{ media.css }}
+  {% if not actions_on_top and not actions_on_bottom %}
+    <style>
+      #changelist table thead th:first-child {width: inherit}
+    </style>
+  {% endif %}
+{% endblock %}
+{% block extrahead %}
+
+
+<script type="text/javascript" src="{% static "jquery/jquery-3.6.0.min.js" %}"></script>
+<script type="text/javascript" src="{% static "celery_progress/celery_progress.js" %}"></script>
+{% if animal %}
+<script type="text/javascript">
+// JQuery
+var progressUrl = "{% url 'celery_progress:task_status' task_id %}";
+
+function customResult(resultElement, result) {
+  $( resultElement ).append(
+    $('<p>').text('Task has finished')
+  );
+}
+
+function customIgnore(resultElement, result) {
+  $( resultElement ).append(
+    $('<p>').text('Task has failed ')
+  );
+}
+
+$(function () {
+  CeleryProgressBar.initProgressBar(progressUrl, {
+    onIgnored: customIgnore,
+    onSuccess: customResult
+  })
+});
+</script>
+{% endif %}
+
+
+
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} app-{{ opts.app_label }} model-{{ opts.model_name }} change-list{% endblock %}
+
+{% block coltype %}flex{% endblock %}
+
+{% block content %}
+
+<p>demo</p>
+
+{% if form %}
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <input type="submit" value="Submit">
+</form>
+{% endif %}
+{% if animal %}
+<p>Finding CZI files for {{animal}}</p>
+{% endif %}
+
+
+<div class='progress-wrapper'>
+  <div id='progress-bar' class='progress-bar' style="background-color: #68a9ef; width: 0%;">&nbsp;</div>
+</div>
+<div id="progress-bar-message">Waiting for progress to start...</div>
+
+<div id="celery-result"></div>
+
+
+
+
+{% endblock %}

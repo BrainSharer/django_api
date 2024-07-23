@@ -1,0 +1,28 @@
+{% include 'header.html' with title='DK Lab Gantt Chart' %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<div class="row">
+	<div class="col-md-12">
+		<h4>Gantt Chart  for {{ animal_title }} </h4>
+		<form id="id_list" action="graph" method="get">
+			{% csrf_token %}
+			<table class="table table-bordered table-condensed">
+				{{ form.as_table }}
+			</table>
+		</form>
+	</div>
+</div>
+
+<div class="row">
+	<div class="col-md-12">
+
+  {% autoescape off %}
+  {{ gantt_div }}
+  {% endautoescape %}
+
+
+	</div>
+	<!-- end of column -->
+</div>
+
+
+{% include 'footer.html' %}

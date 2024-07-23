@@ -1,0 +1,61 @@
+
+{% extends "admin/change_list.html" %}
+
+{% load number_filter %}
+
+{% block content_title %}
+    <h1> Marked cell workflow summary </h1>
+    <p>Search by username or animal</p>
+{% endblock %}
+
+{% block result_list %}
+<div class="results">
+    <table>
+
+    <thead>
+      <tr>
+        <th>
+          <div class="text">Animal</div>
+        </th>
+        <th>
+          <div class="text">Cell type</div>
+        </th>
+        <th>
+          <div class="text">Annotator</div>
+        </th>
+        <th>
+            <div class="text">Source</div>
+          </th>
+          <th>
+            <div class="text">Marked cells count</div>
+          </th>
+          </tr>
+    </thead>
+
+    <tbody>
+      {% for row in summary %}
+      <tr class="{% cycle 'row1' 'row2' %}">
+        <td> {{ row.annotation_session__animal__prep_id }} </td>
+        <td> {{ row.cell_type__cell_type  }} </td>
+        <td> {{ row.annotation_session__annotator__username  }} </td>
+        <td> {{ row.source  }} </td>
+        <td style="text-align:right;padding-right: 20px;"> {{ row.marked_cells | intcomma }} </td>
+      </tr>
+      {% endfor %}
+
+      <tr style="font-weight:bold; border-top:2px solid #DDDDDD;">
+        <td colspan="4"> Total </td>
+        <td style="text-align:right;padding-right: 20px;"> {{ summary_total.cell_total  }} </td>
+    </tr>
+
+    </tbody>
+
+  </table>
+</div>
+
+<!-- ... -->
+
+
+{% endblock %}
+
+{% block pagination %}{% endblock %}

@@ -1,0 +1,4 @@
+AnnotationStatus
+AtlasToBeth
+AlignmentScore
+Points

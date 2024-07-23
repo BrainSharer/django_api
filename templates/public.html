@@ -1,0 +1,30 @@
+{% include 'header.html' with title='DK Lab Active Brain Atlas' %}
+
+<div class="jumbotron" style="text-align: center; background:#417690; margin:10px; ">
+    <h2>Active Brain Atlas</h2>
+    <p>URLs for public viewing with Neuroglancer</p>
+</div>
+
+
+<table class="table table-info" style="margin-top: 20px;">
+    <thead>
+    <tr>
+    <th scope="col">Link to Neuroglancer</th>
+    <th scope="col">Date Created</th>
+    </tr>
+    </thead>
+
+    <tbody>
+    {% for url in urls %}
+        <tr>
+            <th scope="row">
+                <a target="_blank"
+                               href="https://activebrainatlas.ucsd.edu/ng/?id={{ url.id }}">{{ url.comments }}</a>
+            </th>
+            <td>{{ url.created }}</td>
+        </tr>
+
+    {% endfor %}
+    </tbody>
+</table>
+{% include 'footer.html' %}

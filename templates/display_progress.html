@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  {% load bootstrap4 %}
+  {# Load CSS and JavaScript #}
+  {% bootstrap_css %}
+  {% bootstrap_javascript jquery='full' %}
+
+  {# Display django.contrib.messages as Bootstrap alerts #}
+  {% bootstrap_messages %}
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>{{ title }} </title>
+  <script src="static/celery_progress/celery_progress.js"></script>
+  <script>
+    function customResult(resultElement, result) {
+      $(resultElement).append(
+        $('<p>').text('Sum of all seconds is ' + result)
+      );
+    }
+
+    function customProgress(progressBarElement, progressBarMessageElement, progress) {
+      barIdentifier = progressBarElement.id.substring(12)
+
+      if (progress.current == 0 && progress.total == 100) {
+        progressMessage = ""
+      } else {
+        taskNumber = parseInt(progress.current) + 1
+        taskPercentage = taskNumber / progress.total * 100
+
+        progressBarElement.style.backgroundColor = "#68a9ef"
+        progressBarElement.style.width = taskPercentage + "%"
+        progressBarMessageElement.className = "alert alert-info"
+        if (progress.description) {
+          var taskElement = document.getElementById(progressBarElement.id + "-header");
+          taskElement.textContent = progress.description
+          progressMessage = "Running " + taskNumber + " of " + progress.total
+        } else {
+          progressMessage = "Task " + taskNumber + " of " + progress.total
+        }
+
+      }
+
+      progressBarMessageElement.innerHTML = (progressMessage);
+    }
+  </script>
+
+
+  {% for key, value in celery_task_ids.items %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      var progressUrl = "{% url 'celery_progress:task_status' value %}";
+      CeleryProgressBar.initProgressBar(progressUrl, {
+        onProgress: customProgress,
+        progressBarId: "progress-bar{{ key }}",
+        progressBarMessageId: "progress-bar{{ key }}-message",
+        onResult: customResult,
+        onError: "Task had an error",
+        onIgnored: "This task did not complete.{{ key }}"
+      });
+    });
+  </script>
+  {% endfor %}
+
+</head>
+
+<body>
+  <div class="container">
+    <!-- closed in footer -->
+
+    <div class="bg-dark text-white text-center">
+      <h1>Active Brain Atlas Pipeline</h1>
+    </div>
+
+    <div class="container-fluid">
+      {% for key in celery_task_ids %}
+      <div class="row"><div class="col" id="progress-bar{{ key }}-header"></div></div>
+      <div class="row">
+        <div class="col">
+          <div class='progress-wrapper'>
+            <div id="progress-bar{{ key }}" class='progress-bar' style="background-color: #68a9ef; width: 0%;">&nbsp;
+            </div>
+          </div>
+          <div id="progress-bar{{ key }}-message"></div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <footer class="pt-4 my-md-5 pt-md-5 border-top">
+        <div class="row">
+          <div class="col-12 col-md" style="text-align:center;">
+            <a href="http://neurophysics.ucsd.edu">UCSD Department of Neurophysics</a>
+          </div>
+        </div>
+      </footer>
+
+
+
+    </div> <!-- end container -->
+
+</body>
+
+</html>
