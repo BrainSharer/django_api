@@ -86,7 +86,6 @@ class NeuroglancerStateSerializer(serializers.ModelSerializer):
         """
         
         obj.neuroglancer_state = validated_data.get('neuroglancer_state', obj.neuroglancer_state)
-        
         obj.user_date = validated_data.get('user_date', obj.user_date)
         obj.comments = validated_data.get('comments', obj.comments)
         if 'owner' in validated_data:
