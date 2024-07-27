@@ -232,6 +232,7 @@ class SearchSessions(models.Model):
     id = models.BigAutoField(primary_key=True)
     animal_abbreviation_username = models.CharField(max_length=2001, null=False, db_column="animal_abbreviation_username", verbose_name="Animal")
     label_type = models.CharField(max_length=100, blank=False, null=False)
+    updated = models.CharField(max_length=100, blank=False, null=False)
 
     class Meta:
         managed = False

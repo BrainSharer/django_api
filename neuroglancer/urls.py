@@ -20,8 +20,6 @@ annotation_urls = [
     path('annotations/search/<str:search_string>', search_annotation, name='search_annotations'),
     path('annotations/api/<int:session_id>', AnnotationPrivateViewSet.as_view(), name='annotation_session_get_put'),
     path('annotations/api/', AnnotationPrivateViewSet.as_view(), name='annotation_session_post'),
-
-
 ]
 
 general_urls = [

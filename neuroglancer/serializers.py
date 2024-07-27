@@ -25,12 +25,13 @@ class AnnotationSessionDataSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     annotation = serializers.JSONField()
 
-class AnnotationSessionSerializer(serializers.Serializer):
+class AnnotationSearchSerializer(serializers.Serializer):
     """This one feeds the data import of annotations.
     """
 
     id = serializers.IntegerField()
     animal_abbreviation_username = serializers.CharField()
+    updated = serializers.CharField()
 
 
 class LabelSerializer(serializers.Serializer):
@@ -103,11 +104,12 @@ class NeuroglancerStateSerializer(serializers.ModelSerializer):
         try:
             obj.owner = owner
         except User.DoesNotExist:
-            logger.error('Owner was not in validated data')
+            raise APIException('Owner was not in validated data')
         try:
             obj.save()
         except APIException:
-            logger.error('Could not save Neuroglancer model')
-        # obj.neuroglancer_state = None
+            raise APIException('Could not save Neuroglancer model')
+        
+        obj.neuroglancer_state = None
         return obj
 

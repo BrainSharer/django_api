@@ -18,9 +18,8 @@ from neuroglancer.create_state_views import NeuroglancerJSONStateManager
 from neuroglancer.annotation_session_manager import AnnotationSessionManager, get_label_ids
 from neuroglancer.models import AnnotationLabel, AnnotationSession, \
     NeuroglancerState, SearchSessions
-from neuroglancer.serializers import AnnotationLabelModelSerializer, AnnotationModelSerializer, AnnotationSessionDataSerializer, \
-    AnnotationSessionSerializer, LabelSerializer, \
-    NeuroglancerNoStateSerializer, NeuroglancerStateSerializer
+from neuroglancer.serializers import AnnotationLabelModelSerializer, AnnotationModelSerializer, AnnotationSearchSerializer, AnnotationSessionDataSerializer, \
+    LabelSerializer, NeuroglancerNoStateSerializer, NeuroglancerStateSerializer
 from neuroglancer.models import DEBUG
 
 
@@ -56,10 +55,11 @@ def search_annotation(request, search_string=None):
         for row in rows:
             data.append({
                 "id": row.id,
-                "animal_abbreviation_username": row.animal_abbreviation_username
+                "animal_abbreviation_username": row.animal_abbreviation_username,
+                "updated": row.updated
             })
         
-    serializer = AnnotationSessionSerializer(data, many=True)
+    serializer = AnnotationSearchSerializer(data, many=True)
     return Response(serializer.data)
 
 class Segmentation(views.APIView):
