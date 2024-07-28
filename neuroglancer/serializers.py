@@ -110,6 +110,6 @@ class NeuroglancerStateSerializer(serializers.ModelSerializer):
         except APIException:
             raise APIException('Could not save Neuroglancer model')
         
-        obj.neuroglancer_state = None
+        #obj.neuroglancer_state = None
         return obj
 
