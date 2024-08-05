@@ -28,7 +28,8 @@ CREATE VIEW v_search_sessions AS
 SELECT
 	AS2.id AS id,
 	CONCAT(AS2.FK_prep_id, ' ', GROUP_CONCAT(AL.label), ' ', AU.username) AS animal_abbreviation_username,
-	AL.label_type AS label_type
+	AL.label_type AS label_type, 
+	DATE_FORMAT(AS2.updated, "%d %b %Y %H:%i") as updated
 FROM annotation_session AS2
 INNER JOIN annotation_label AL 
 INNER JOIN annotation_session_labels ASL ON (AS2.id = ASL.annotationsession_id AND AL.id = ASL.annotationlabel_id)
@@ -37,6 +38,8 @@ WHERE AS2.active = 1
 AND AU.is_active = 1
 AND AL.active = 1
 GROUP BY AS2.id;
+
+select * from v_search_sessions limit 10;
 
 ALTER TABLE annotation_label ADD CONSTRAINT `UK__label` UNIQUE (label);
 INSERT INTO annotation_label (label, label_type)
