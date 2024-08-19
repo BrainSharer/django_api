@@ -17,6 +17,12 @@
 #sys.path.append(PROJECT_DIR)
 
 import os
+from urllib.request import urlretrieve
+urlretrieve (
+    "https://raw.githubusercontent.com/BrainSharer/pipeline/master/docs/sphinx/source/modules/header.rst",
+    "modules/header.rst"
+)
+
 import sys
 from pathlib import Path
 ROOT = Path(__file__).parents[2]

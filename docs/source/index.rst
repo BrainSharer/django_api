@@ -1,10 +1,7 @@
-.. Brainsharer documentation master file, created by
-   sphinx-quickstart on Wed Jun  1 15:07:58 2022.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+.. include:: modules/header.rst
 
-Brainsharer documentation
-============================================
+Django database portal documentation
+=====================================
 These pages contain documentation regarding the MVC (model, view, and controller) programming
 classes for the Django database interface. Django breaks up this interface into 'apps'. The two
 main apps of interest are:
@@ -40,7 +37,6 @@ Use the side navigation panel to view different classes and methods within each 
    :hidden:
 
    Neuroglancer admin module <modules/neuroglancer/admin.rst> 
-   Annotation manager <modules/neuroglancer/annotation_session_manager.rst>
    Neuroglancer models (database columns) <modules/neuroglancer/models.rst> 
    REST API serializers <modules/neuroglancer/serializers.rst> 
    Neuroglancer tests <modules/neuroglancer/tests.rst>

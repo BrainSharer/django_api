@@ -23,4 +23,4 @@ graph:
 	python ../document_manage.py graph_models -X exclude.models.txt -o build/html/_static/brain.neuroglancer.png
 
 publish:
-	rsync -auv --delete build/html/* webdev:/var/www/webdev/docs/brainsharer
+	rsync -auv --delete build/html/* webdev:/var/www/webdev/docs/brainsharer/django/
