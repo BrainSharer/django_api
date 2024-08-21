@@ -199,7 +199,8 @@ class Points(NeuroglancerState):
         managed = False
         proxy = True
         verbose_name = 'Points'
-        verbose_name_plural = 'Points'
+        verbose_name_plural = 'Points/Polygons'
+
 
 class CellType(models.Model):
     """Model corresponding to the cell type table in the database
@@ -302,6 +303,15 @@ class AnnotationSession(AtlasModel):
                 annotation_type = 'NA'
         return annotation_type
 
+
+class AnnotationData(AnnotationSession):
+    """Model corresponding to the annotation points table in the database
+    """
+    
+    class Meta:
+        managed = False
+        proxy = True
+        verbose_name_plural = 'Exported annotations'
 
 
 

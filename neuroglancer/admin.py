@@ -18,7 +18,7 @@ import plotly.express as px
 from brain.admin import AtlasAdminModel, ExportCsvMixin
 from brain.models import ScanRun
 from neuroglancer.models import AnnotationLabel, AnnotationSession, \
-    NeuroglancerState, Points
+    NeuroglancerState, Points, AnnotationData
 from neuroglancer.dash_view import dash_scatter_view
 from neuroglancer.url_filter import UrlFilter
 
@@ -217,6 +217,27 @@ class PointsAdmin(admin.ModelAdmin):
         return False
 
 
+@admin.register(AnnotationData)
+class AnnotationDataAdmin(admin.ModelAdmin):
+    list_display = ['animal', 'get_labels', 'annotation_type', 'annotator', 'created', 'updated']
+    ordering = ['animal', 'created', 'annotator']
+    list_filter = ['created', 'updated']
+    search_fields = ['animal__prep_id', 'annotator__first_name']
+    readonly_fields = ['created', 'updated', 'annotation_type']
+
+    def get_labels(self, obj):
+        # for the many to many case 
+        labs = "\n".join([p.label for p in obj.labels.all()])
+        return labs
+    get_labels.short_description = 'Labels'
+
+    def get_queryset(self, request):
+        """Returns the query set of points where the layer contains annotations"""
+        rows = AnnotationData.objects.filter(active=True)
+        return rows
+
+
+
 @admin.register(AnnotationSession)
 class AnnotationSessionAdmin(AtlasAdminModel):
     """Administer the annotation session data.
@@ -227,20 +248,16 @@ class AnnotationSessionAdmin(AtlasAdminModel):
     search_fields = ['animal__prep_id', 'annotator__first_name']
     readonly_fields = ['created', 'updated', 'annotation_type']
 
-
     def get_labels(self, obj):
         # for the many to many case 
         labs = "\n".join([p.label for p in obj.labels.all()])
         return labs
-
-
+    get_labels.short_description = 'Labels'
 
     def label_type(self, obj):
         """Returns the label type of the annotation session.
         """
         return obj.label.label_type
-
-
 
     def show_points_without_link(self, obj):
         """Shows the HTML for the link to the graph of data.
@@ -251,6 +268,7 @@ class AnnotationSessionAdmin(AtlasAdminModel):
         if len_points > 1:
             title = 'points'
         return f"{len_points} {title}"
+    
     show_points_without_link.short_description = 'Points'
 
     def show_points(self, obj):
@@ -265,7 +283,6 @@ class AnnotationSessionAdmin(AtlasAdminModel):
             '<a href="{}">{} {}</a>',
             reverse('admin:annotationsession-data', args=[obj.pk]), len_points, title
         )
-
 
     def get_urls(self):
         """Shows the HTML of the links to go to the graph, and table data.
@@ -304,7 +321,6 @@ class AnnotationSessionAdmin(AtlasAdminModel):
                         for k, v in point.items():
                             print(point['pointA'])
                             points.append(point['pointA'])
-
 
         title = f"Animal ID: {session.animal.prep_id} \
             Annotator: {session.annotator.first_name} structure: {session.label.label}"
@@ -351,44 +367,4 @@ class AnnotationLabelAdmin(AtlasAdminModel, ExportCsvMixin):
         """Formats the date nicely."""
         return datetime_format(obj.created)
     created_display.short_description = 'Created'
-
-"""
-@admin.register(CellType)
-class CellTypeAdmin(AtlasAdminModel, ExportCsvMixin):
-    '''This class administers the different type of cells.'''
-
-    list_display = ('cell_type', 'description', 'active')
-    ordering = ['cell_type']
-    readonly_fields = ['created']
-    list_filter = ['created', 'active']
-    search_fields = ['cell_type', 'description']
-
-    def created_display(self, obj):
-        return datetime_format(obj.created)
-    created_display.short_description = 'Created'
-"""
-
-def make_inactive(modeladmin, request, queryset):
-    """A method to set any object inactive
-    
-    :param request: HTTP request.
-    :param queryset: set of querys used to update.
-    """
-    
-    queryset.update(active=False)
-
-
-make_inactive.short_description = "Mark selected COMs as inactive"
-
-
-def make_active(modeladmin, request, queryset):
-    """A method to set any object active
-    
-    :param request: HTTP request.
-    :param queryset: set of querys used to update.
-    """
-    queryset.update(active=True)
-
-
-make_active.short_description = "Mark selected COMs as active"
 
