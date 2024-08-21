@@ -110,18 +110,32 @@ class NeuroglancerState(models.Model):
             for layer in layers:
                 if 'annotations' in layer:
                     name = layer['name']
-                    annotation = layer['annotations']
-                    d = [row['point'] for row in annotation if 'point' in row and 'pointA' not in row]
+                    annotations = layer['annotations']
+                    # This is for the cloud points
+                    d = [row['point'] for row in annotations if 'point' in row and 'pointA' not in row]
                     df = pd.DataFrame(d, columns=['X', 'Y', 'Section'])
                     df['Section'] = df['Section'].astype(int)
                     df['Layer'] = name
-                    structures = [row['description'] for row in annotation if 'description' in row]
+                    structures = [row['description'] for row in annotations if 'description' in row]
                     if len(structures) != len(df):
-                        structures = ['' for row in annotation if 'point' in row and 'pointA' not in row]
+                        structures = ['point' for row in annotations if 'point' in row and 'pointA' not in row]
                     df['Description'] = structures
                     df = df[['Layer', 'Description', 'X', 'Y', 'Section']]
                     df = df.drop_duplicates()
                     dfs.append(df)
+                    # This is for the polygons
+                    d = [row['pointA'] for row in annotations if 'pointA' in row and 'point' not in row]
+                    df = pd.DataFrame(d, columns=['X', 'Y', 'Section'])
+                    df['Section'] = df['Section'].astype(int)
+                    df['Layer'] = name
+                    structures = [row['description'] for row in annotations if 'description' in row]
+                    if len(structures) != len(df):
+                        structures = ['polygon' for row in annotations if 'pointA' in row and 'point' not in row]
+                    df['Description'] = structures
+                    df = df[['Layer', 'Description', 'X', 'Y', 'Section']]
+                    df = df.drop_duplicates()
+                    dfs.append(df)
+
             if len(dfs) == 0:
                 result = None
             elif len(dfs) == 1:

@@ -88,18 +88,22 @@ def user_get_or_create(*, email: str, **extra_data) -> Tuple[User, bool]:
 
 
 def jwt_login(*, response: HttpResponse, user: User, request: HttpRequest) -> HttpResponse:
-    refresh_access_cookies(response=response, user=user)
+    refresh_access_cookies(response=response, request=request)
     user_record_login(user=user)
     user.backend = 'allauth.account.auth_backends.AuthenticationBackend'
     login(request, user)
     return response
 
 
-def refresh_access_cookies(response: HttpResponse, user: User) -> None:
+def refresh_access_cookies(response: HttpResponse, request: HttpRequest) -> None:
+    user = request.user
+    sessionid = request.session.session_key
     token = get_tokens_for_user(user)    
     set_cookie_with_token(response, 'access', token['access'])    
     set_cookie_with_token(response, 'id', user.id)
     set_cookie_with_token(response, 'username', user.username)
+    set_cookie_with_token(response, 'sessionid', sessionid)
+    #set_cookie_with_token(response, 'sessionid', user.get_session_auth_hash)
     if user.lab is not None:
         set_cookie_with_token(response, 'lab', user.lab.lab_name)
     else:
@@ -226,6 +230,6 @@ def set_cookie_with_token(response, name, token):
     response.set_cookie(name, token, **params)
 
 def get_expiry():
-    expiry = datetime.datetime.utcnow()
+    expiry = datetime.datetime.now(datetime.timezone.utc)
     expiry += datetime.timedelta(minutes=settings.ACCESS_TOKEN_LIFETIME_MINUTES)
     return expiry.strftime('%a, %d-%b-%Y %T GMT')

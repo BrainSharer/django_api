@@ -5,7 +5,6 @@ metadata associated with the 'Neuroglancer' app. It does not list the fields (da
 in the models document for the database table model. 
 """
 import pandas as pd
-from decimal import Decimal
 from django.utils.html import format_html, escape
 from collections import Counter
 from django.db import models
@@ -107,14 +106,20 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
 @admin.register(Points)
 class PointsAdmin(admin.ModelAdmin):
     """This class may become deprecated, but for now it gets point data
-    from the actual JSON and not the 3 new tables we have that contain x,y,z data.
+    from the actual JSON and not the annotation JSON.
     """
 
-    list_display = ('animal', 'comments', 'owner', 'show_points', 'updated')
+    list_display = ('animal', 'open_neuroglancer', 'owner', 'show_points_links', 'updated', 'created')
     ordering = ['-created']
     readonly_fields = ['neuroglancer_state', 'created', 'user_date', 'updated']
     search_fields = ['comments']
     list_filter = ['created', 'updated', 'readonly']
+
+    def open_neuroglancer(self, obj):
+        """This method creates an HTML link that allows the user to access Neuroglancer"""
+        host = settings.NG_URL
+        links = f'<a target="_blank" href="{host}?id={obj.id}">{obj.comments}</a>'
+        return format_html(links)
 
     def created_display(self, obj):
         """Returns a nicely formatted creation date."""
@@ -127,7 +132,7 @@ class PointsAdmin(admin.ModelAdmin):
             neuroglancer_state__layers__contains={'type': 'annotation'})
         return points
 
-    def show_points(self, obj):
+    def show_points_links(self, obj):
         """Shows the HTML for the link to the graph of data."""
         return format_html(
             '<a href="{}">3D Graph</a>&nbsp; <a href="{}">Data</a>',
