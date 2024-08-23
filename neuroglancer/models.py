@@ -191,17 +191,6 @@ class NeuroglancerState(models.Model):
         return results
 
 
-class Points(NeuroglancerState):
-    """Model corresponding to the annotation points table in the database
-    """
-    
-    class Meta:
-        managed = False
-        proxy = True
-        verbose_name = 'Points'
-        verbose_name_plural = 'Points/Polygons'
-
-
 class CellType(models.Model):
     """Model corresponding to the cell type table in the database
     """
@@ -274,8 +263,6 @@ class AnnotationSession(AtlasModel):
     """This model describes a user session in Neuroglancer."""
     id = models.BigAutoField(primary_key=True)
     animal = models.ForeignKey(Animal, models.CASCADE, null=True, db_column="FK_prep_id", verbose_name="Animal")
-    #neuroglancer_model = models.ForeignKey(NeuroglancerState, models.CASCADE, null=True, db_column="FK_state_id", verbose_name="Neuroglancer state")
-    #label = models.ForeignKey(AnnotationLabel, models.CASCADE, null=True, db_column="FK_label_id", verbose_name="Brain region")
     labels = models.ManyToManyField(AnnotationLabel, related_name="labels", db_column="annotation_session_id",  verbose_name="Annotation label")
     annotator = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, db_column="FK_user_id",
                                verbose_name="Annotator", blank=False, null=False)
@@ -292,15 +279,8 @@ class AnnotationSession(AtlasModel):
     @property
     def annotation_type(self):
         annotation_type = "NA"
-        if self.annotation is not None:
-            if 'cell' in self.annotation:
-                annotation_type = 'cell'
-            elif 'point' in self.annotation:
-                annotation_type = 'point/COM'
-            elif 'volume' in self.annotation:
-                annotation_type = 'volume'
-            else:
-                annotation_type = 'NA'
+        if self.annotation is not None and 'type' in self.annotation:
+            annotation_type = self.annotation['type']
         return annotation_type
 
 
@@ -311,8 +291,18 @@ class AnnotationData(AnnotationSession):
     class Meta:
         managed = False
         proxy = True
+        verbose_name = 'Exported annotation data'
         verbose_name_plural = 'Exported annotations'
 
+class Points(NeuroglancerState):
+    """Model corresponding to the annotation points table in the database
+    """
+    
+    class Meta:
+        managed = False
+        proxy = True
+        verbose_name = 'Layer points/polygons'
+        verbose_name_plural = 'Layer points/polygons'
 
 
 

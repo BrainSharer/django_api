@@ -5,8 +5,8 @@ metadata associated with the 'Neuroglancer' app. It does not list the fields (da
 in the models document for the database table model. 
 """
 import pandas as pd
-from django.utils.html import format_html, escape
-from collections import Counter
+from django.utils.html import format_html
+from django.db.models import Q
 from django.db import models
 from django.conf import settings
 from django.contrib import admin
@@ -111,9 +111,10 @@ class PointsAdmin(admin.ModelAdmin):
 
     list_display = ('animal', 'open_neuroglancer', 'owner', 'show_points_links', 'updated', 'created')
     ordering = ['-created']
-    readonly_fields = ['neuroglancer_state', 'created', 'user_date', 'updated']
+    readonly_fields = ['created', 'updated']
     search_fields = ['comments']
     list_filter = ['created', 'updated', 'readonly']
+    exclude = ['neuroglancer_state', 'user_date']
 
     def open_neuroglancer(self, obj):
         """This method creates an HTML link that allows the user to access Neuroglancer"""
@@ -222,8 +223,9 @@ class AnnotationDataAdmin(admin.ModelAdmin):
     list_display = ['animal', 'get_labels', 'annotation_type', 'annotator', 'created', 'updated']
     ordering = ['animal', 'created', 'annotator']
     list_filter = ['created', 'updated']
-    search_fields = ['animal__prep_id', 'annotator__first_name']
-    readonly_fields = ['created', 'updated', 'annotation_type']
+    search_fields = ['animal__prep_id', 'annotator__first_name', 'labels__label']
+    readonly_fields = ['created', 'updated']
+    exclude = ['annotation']
 
     def get_labels(self, obj):
         # for the many to many case 
@@ -236,12 +238,32 @@ class AnnotationDataAdmin(admin.ModelAdmin):
         rows = AnnotationData.objects.filter(active=True)
         return rows
 
+    def has_add_permission(self, request, obj=None):
+        """Returns false as the data is readonly"""
+        return False
+    
 
+@admin.register(AnnotationLabel)
+class AnnotationLabelAdmin(AtlasAdminModel, ExportCsvMixin):
+    """Class that provides admin capability for managing a region of the brain. This
+    was also called a structure.
+    """
 
+    list_display = ('label_type', 'label', 'description', 'active', 'created_display')
+    ordering = ['label_type', 'label']
+    readonly_fields = ['created']
+    list_filter = ['label_type', 'created', 'active']
+    search_fields = ['label', 'description']
+
+    def created_display(self, obj):
+        """Formats the date nicely."""
+        return datetime_format(obj.created)
+    created_display.short_description = 'Created'
+
+"""
 @admin.register(AnnotationSession)
 class AnnotationSessionAdmin(AtlasAdminModel):
-    """Administer the annotation session data.
-    """
+    
     list_display = ['animal', 'get_labels', 'annotation_type', 'annotator', 'created', 'updated']
     ordering = ['animal', 'created', 'annotator']
     list_filter = ['created', 'updated']
@@ -255,14 +277,9 @@ class AnnotationSessionAdmin(AtlasAdminModel):
     get_labels.short_description = 'Labels'
 
     def label_type(self, obj):
-        """Returns the label type of the annotation session.
-        """
         return obj.label.label_type
 
     def show_points_without_link(self, obj):
-        """Shows the HTML for the link to the graph of data.
-        """
-
         len_points = get_points_in_session(obj.pk)
         title = 'point'
         if len_points > 1:
@@ -272,9 +289,6 @@ class AnnotationSessionAdmin(AtlasAdminModel):
     show_points_without_link.short_description = 'Points'
 
     def show_points(self, obj):
-        """Shows the HTML for the link to the graph of data.
-        """
-
         len_points = get_points_in_session(obj.pk)
         title = 'point'
         if len_points > 1:
@@ -285,9 +299,6 @@ class AnnotationSessionAdmin(AtlasAdminModel):
         )
 
     def get_urls(self):
-        """Shows the HTML of the links to go to the graph, and table data.
-        """
-        
         urls = super().get_urls()
         custom_urls = [
             path('annotationsession-data/<id>',
@@ -301,9 +312,6 @@ class AnnotationSessionAdmin(AtlasAdminModel):
         return qs
 
     def view_points_in_session(self, request, id, *args, **kwargs):
-        """Provides the HTML link to the table data
-        """
-        
         session = AnnotationSession.objects.get(pk=id)
         json_data = session.annotation
         data = []
@@ -350,21 +358,4 @@ class AnnotationSessionAdmin(AtlasAdminModel):
             opts=NeuroglancerState._meta,
         )
         return TemplateResponse(request, "admin/neuroglancer/points_table.html", context)
-
-@admin.register(AnnotationLabel)
-class AnnotationLabelAdmin(AtlasAdminModel, ExportCsvMixin):
-    """Class that provides admin capability for managing a region of the brain. This
-    was also called a structure.
-    """
-
-    list_display = ('label_type', 'label', 'description', 'active', 'created_display')
-    ordering = ['label_type', 'label']
-    readonly_fields = ['created']
-    list_filter = ['label_type', 'created', 'active']
-    search_fields = ['label', 'description']
-
-    def created_display(self, obj):
-        """Formats the date nicely."""
-        return datetime_format(obj.created)
-    created_display.short_description = 'Created'
-
+"""
