@@ -65,3 +65,6 @@ ALTER TABLE polygon_sequences DROP FOREIGN KEY `FK_polygon_sequences_annotation_
 -- finished adds, drops and alters
 insert into annotation_label (label_type, label) values ('cell', 'Fiducial_test');
 
+select * from scan_run where FK_prep_id like 'DKXXX' order by FK_prep_id;
+select * from slide_czi_to_tif sctt limit 100;
+

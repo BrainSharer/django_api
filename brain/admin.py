@@ -208,6 +208,7 @@ class ScanRunAdmin(AtlasAdminModel, ExportCsvMixin):
     search_fields = ('prep__prep_id',)
     ordering = ['prep_id', 'machine','comments', 'created']
 
+
 class TifInline(admin.TabularInline):
     """This class is solely used for the database QA. It will display the 
     associated TIFF files for each 
