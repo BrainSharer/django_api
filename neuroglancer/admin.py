@@ -4,9 +4,7 @@ our database portal. This is where the end user can create, retrieve, update and
 metadata associated with the 'Neuroglancer' app. It does not list the fields (database columns). Look 
 in the models document for the database table model. 
 """
-import pandas as pd
 from django.utils.html import format_html
-from django.db.models import Q
 from django.db import models
 from django.conf import settings
 from django.contrib import admin
@@ -15,8 +13,8 @@ from django.urls import reverse, path
 from django.template.response import TemplateResponse
 from plotly.offline import plot
 import plotly.express as px
-from brain.admin import AtlasAdminModel, ExportCsvMixin
-from brain.models import ScanRun
+
+from brainsharer.admin_extensions import AtlasAdminModel, ExportCsvMixin
 from neuroglancer.models import AnnotationLabel, AnnotationSession, \
     NeuroglancerState, Points, AnnotationData
 from neuroglancer.dash_view import dash_scatter_view

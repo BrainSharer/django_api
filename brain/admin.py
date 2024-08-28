@@ -4,104 +4,17 @@ our database portal. This is where the end user can create, retrieve, update and
 metadata associated with the 'Brain' app. It does not list the fields (database columns). Look 
 in the models document for the database table model.
 """
-import os
 
 from django.contrib import admin
-from django.forms import TextInput, Textarea, DateInput, NumberInput, Select
-from django.db import models
 from django.conf import settings
-import csv
-from django.http import HttpResponse
-from django.contrib.admin.widgets import AdminDateWidget
 from django.shortcuts import HttpResponseRedirect
 from django.utils.safestring import mark_safe
+from django.db.models import Count
 
 from brain.forms import save_slide_model, TifInlineFormset, scene_reorder
 from brain.models import (Animal, Histology, Injection, Virus, InjectionVirus,
                           ScanRun, Slide, SlideCziToTif, Section)
-
-
-class AtlasAdminModel(admin.ModelAdmin):
-    """This is used as a base class for most of the other classes. It contains
-    all the common variables that all the tables/objects have. It inherits
-    from the Django base admin model: admin.ModelAdmin
-    """
-    class Media:
-        """This is a simple class that defines some CSS attributes for the 
-        thumbnails
-        """
-        css = {
-            'all': ('admin/css/thumbnail.css',)
-        }
-
-    def is_active(self, instance):
-        """A method returning a boolean showing if the data row is active
-
-        :param instance: obj class
-        :return: A boolean
-        """
-        return instance.active == 1
-
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        """Simple formatting for foreign keys
-
-        :param db_field: data row field
-        :param request: http request
-        :param kwargs: extra args
-        :return: the HTML of the form field
-        """
-        kwargs['widget'] = Select(attrs={'style': 'width: 250px;'})
-        return super().formfield_for_foreignkey(db_field, request, **kwargs)
-
-
-    formfield_overrides = {
-        models.CharField: {'widget': Select(attrs={'size': '20', 'style': 'width:250px;'})},
-        models.CharField: {'widget': TextInput(attrs={'size': '20','style': 'width:100px;'})},
-        models.DateTimeField: {'widget': DateInput(attrs={'size': '20'})},
-        models.DateField: {'widget': AdminDateWidget(attrs={'size': '20'})},
-        models.IntegerField: {'widget': NumberInput(attrs={'size': '40', 'style': 'width:100px;'})},
-        models.TextField: {'widget': Textarea(attrs={'rows': 4, 'cols': 40})},
-    }
-
-    is_active.boolean = True
-    list_filter = ('created', )
-    fields = []
-    actions = ["export_as_csv"]
-
-
-class ExportCsvMixin:
-    """A class used by most of the admin categories. It adds formatting 
-    to make fields look consistent and also adds the method to export 
-    to CSV from each of the 'Action' dropdowns in each category. 
-    """
-
-    def export_as_csv(self, request, queryset):
-        """Set the callback function to be executed when the device sends a
-        notification to the client.
-
-        :param request: The http request
-        :param queryset: The query used to fetch the CSV data
-        :return: a http response
-        """
-
-        meta = self.model._meta
-        excludes = ['histogram',  'image_tag']
-        field_names = [
-            field.name for field in meta.fields if field.name not in excludes]
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename={}.csv'.format(
-            meta)
-        writer = csv.writer(response)
-
-        writer.writerow(field_names)
-        for obj in queryset:
-            row = writer.writerow([getattr(obj, field)
-                                  for field in field_names])
-
-        return response
-
-    export_as_csv.short_description = "Export Selected"
-
+from brainsharer.admin_extensions import AtlasAdminModel, ExportCsvMixin
 
 
 @admin.register(Animal)
@@ -341,13 +254,12 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
             exporter method.
     """
     change_form_template = 'admin/brain/slide_change_form.html'
-       
-    list_display = ('prep_id', 'file_name', 'slide_status', 'comments', 'scene_count')
+
+    list_display = ('prep_id', 'slide_physical_id', 'slide_status', 'comments', 'scene_count')
     search_fields = ['scan_run__prep__prep_id', 'file_name']
     ordering = ['file_name', 'created']
     readonly_fields = ['file_name', 'slide_physical_id', 'scan_run', 'processed', 'file_size', 
                        'previous_preview_tag', 'current_preview_tag', 'following_preview_tag']
-
 
     def get_fields(self, request, obj):
         """This method fetches the correct 
@@ -358,7 +270,7 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         :param obj: the TIFF obj
         :return: HTML of the fields
         """
-        #count = self.scene_count(obj)
+        # count = self.scene_count(obj)
         scene_indexes = list(SlideCziToTif.objects\
                             .filter(slide=obj).filter(channel=1).filter(active=True)\
                             .order_by('-active','scene_number','scene_index').values_list('scene_index', flat=True))
@@ -382,7 +294,6 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         except IndexError:
             pass
 
-        
         fields = ['file_name', 'scan_run', 'slide_physical_id', 'slide_status']
         replication_fields = {
             0: ['insert_before_one'],
@@ -397,14 +308,13 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         for scene_index in scene_indexes:
             if scene_index in replication_fields:
                 fields.extend(replication_fields[scene_index])
-        
+
         fields.extend(['comments'])
         fields.extend(self.previews)
 
         return fields
 
     inlines = [TifInline, ]
-
 
     def previous_preview_tag(self, obj):
         png = self.previous_slide.file_name.replace('czi', 'png')
@@ -417,7 +327,7 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         thumbnail = f"https://imageserv.dk.ucsd.edu/data/{obj.scan_run.prep}/slides_preview/{png}"
         return mark_safe(f'<h3>{obj.file_name} {obj.checksum}</h3><img src="{thumbnail}" alt="current preview"/>')
     current_preview_tag.short_description = 'Current'
-    
+
     def following_preview_tag(self, obj):
         png = self.following_slide.file_name.replace('czi', 'png')
         thumbnail = f"https://imageserv.dk.ucsd.edu/data/{self.following_slide.scan_run.prep}/slides_preview/{png}"
@@ -431,12 +341,12 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         :param obj: the slide obj
         :return: an integer of the number of scenes
         """
+
         scenes = SlideCziToTif.objects.filter(slide__id=obj.id).filter(channel=1).filter(active=True).values_list('id').distinct()
         count = len(scenes)
         return count
 
     scene_count.short_description = "Active Scenes"
-
 
     def get_queryset(self, request):
         """Description of get_queryset - returns the active slides 
@@ -444,8 +354,8 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         :param request: http request
         :return: a query set
         """
-        results = Slide.objects.filter(active=True)
-        return results    
+        qs = Slide.objects.filter(active=True)
+        return qs
 
     def save_model(self, request, obj, form, change):
         """Description of save_model - overridden method of the save 
@@ -461,7 +371,6 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         obj.user = request.user
         save_slide_model(self, request, obj, form, change)
         super().save_model(request, obj, form, change)
-
 
     def has_delete_permission(self, request, obj=None):
         """Cannot show or use the delete button at this stage.
@@ -480,7 +389,6 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         :return: False
         """
         return False
-
 
     def prep_id(self, instance):
         """Returns the animal name that the slide belongs to
@@ -704,7 +612,6 @@ class LogEntryAdmin(admin.ModelAdmin):
 
         """
         return request.user.is_superuser
-
 
 
 admin.site.site_header = 'Brainsharer Admin'

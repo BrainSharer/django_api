@@ -74,7 +74,7 @@ class TestSlideForms(TransactionTestCase):
         self.assertEqual(list(ma.get_form(request).base_fields), ['name', 'bio', 'sign_date'])
         self.assertEqual(list(ma.get_fields(request)), ['name', 'bio', 'sign_date'])
         self.assertEqual(list(ma.get_fields(request, self.slide)),
-                         ['active', 'scan_run', 'slide_physical_id', 'rescan_number', 'slide_status', 'scenes',
+                         ['active', 'scan_run', 'slide_physical_id', 'slide_status', 'scenes',
                           'insert_before_one', 'scene_qc_1', 'insert_between_one_two', 'scene_qc_2',
                           'insert_between_two_three', 'scene_qc_3', 'insert_between_three_four', 'scene_qc_4',
                           'insert_between_four_five', 'scene_qc_5', 'insert_between_five_six', 'scene_qc_6',

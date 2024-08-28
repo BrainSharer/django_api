@@ -171,8 +171,7 @@ class ScanRun(AtlasModel):
     """
     
     id = models.AutoField(primary_key=True)
-    prep = models.ForeignKey(Animal, models.CASCADE, db_column='FK_prep_id')
-    rescan_number = models.PositiveIntegerField(blank=False, null=False, default=0, editable=False)
+    prep = models.OneToOneField(Animal, models.CASCADE, db_column='FK_prep_id')
     machine = EnumField(choices=['Axioscan I', 'Axioscan II', 'Nanozoomer'], blank=True, null=True)
     objective = EnumField(choices=['60X','40X','20X','10X'], blank=True, null=True)
     resolution = models.FloatField(verbose_name="XY Resolution (µm)")
@@ -203,20 +202,6 @@ class ScanRun(AtlasModel):
     class Meta:
         managed = False
         db_table = 'scan_run'
-
-    def save(self, *args, **kwargs):
-        # This means that the model isn't saved to the database yet
-        if self._state.adding:
-            # Get the maximum display_id value from the database
-            last_id = ScanRun.objects.filter(prep=self.prep).aggregate(models.Max('rescan_number'))['rescan_number__max']
-            print(self.prep, last_id)
-
-            # aggregate can return None! Check it first.
-            # If it isn't none, just use the last ID specified (which should be the greatest) and add one to it
-            if last_id is not None:
-                self.rescan_number = last_id + 1
-
-        super(ScanRun, self).save(*args, **kwargs)
 
 
 class Slide(AtlasModel):
