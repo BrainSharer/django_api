@@ -17,29 +17,38 @@
 #sys.path.append(PROJECT_DIR)
 
 import os
-from urllib.request import urlretrieve
-urlretrieve (
-    "https://raw.githubusercontent.com/BrainSharer/pipeline/master/docs/sphinx/source/modules/header.rst",
-    "modules/header.rst"
-)
-
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
 import sys
 from pathlib import Path
 ROOT = Path(__file__).parents[2]
-#ROOT = Path.joinpath(ROOT, "src")
 sys.path.append(ROOT.as_posix())
-print(ROOT)
-#sys.exit()
 os.environ['DJANGO_SETTINGS_MODULE'] = 'brainsharer.documentation_settings'
 import django
 import inspect
 django.setup()
 
+url = Request("https://raw.githubusercontent.com/BrainSharer/pipeline/master/docs/sphinx/source/modules/header.rst")
+try:
+    response = urlopen(url, timeout=10)
+except HTTPError as e:
+    # do something
+    print('Error code: ', e.code)
+except URLError as e:
+    # do something
+    print('Reason: ', e.reason)
+else:
+    # do something
+    print('good!')
+    with open("modules/header.rst", 'wb') as f:
+        f.write(response.read())
+
+
 
 try:
   from skimage import io
-except ImportError:
-  print("oh no 2")
+except ImportError as ie:
+  print(f"ImportError: {ie}")
 
 
 # -- Project information -----------------------------------------------------
