@@ -1,0 +1,8 @@
+#!/bin/bash
+# SAMPLE http://localhost:8000/contour_to_segmentation/679/c0a43fe4afb221ac9f88349ab080f4ea64fc9112
+#SBATCH -e /opt/slurm/output/slurm_%j.err
+#SBATCH -o /opt/slurm/output/slurm_%j.out
+#SBATCH -b now
+source /usr/local/share/brainsharer/bin/activate
+python /opt/brainsharer/slurm_scripts/create_volume_from_contours.py --url $1 --volume $2
+#rsync -a /opt/slurm/ activebrainatlas:/opt/slurm
