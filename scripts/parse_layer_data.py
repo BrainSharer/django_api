@@ -48,34 +48,36 @@ class Parsedata:
 
         state = NeuroglancerState.objects.get(pk=neuroglancer_state_id)
         existing_state = state.neuroglancer_state
-        existing_annotations = existing_state['layers'][layer_id]['annotations']
+        existing_annotations = existing_state["layers"][layer_id]["annotations"]
 
-        existing_name = existing_state['layers'][layer_id]['name']
+        existing_name = existing_state["layers"][layer_id]["name"]
         parent_id = f"{Parsedata.random_string()}"
         other_rows = []  # list of dictionaries
         childAnnotationIds = []
         points = []
+        descriptions = set()
         if len(existing_annotations) == 0:
             return
+        
+        first_annotation = existing_annotations[0]
+        first_prop = first_annotation["props"][0]
         for i, row in enumerate(existing_annotations):
-            if 'point' in row:
-                point = row['point']
+            if "point" in row:
+                point = row["point"]
             else:
                 continue
-            
-            if 'category' in row:
-                category = row['category']
-            else:
-                category = ''
 
-            if 'description' in row:
-                description = row['description']
-            else:
-                description = ''
-            
-            if 'props' in row:
-                color = row['props'][0]
-                props = [color]
+            if "category" in row:
+                category = row["category"]
+                descriptions.add(category)
+
+            if "description" in row:
+                description = row["description"]
+                descriptions.add(description)
+
+            if "props" in row:
+                color = row["props"][0]
+                props = [f"{color}", 1, 1, 5, 3, 1]
             else:
                 props = default_props
 
@@ -84,12 +86,14 @@ class Parsedata:
                 "type": "point",
                 "id": f"{Parsedata.random_string()}",
                 "parentAnnotationId": f"{parent_id}",
-                "props": default_props,
+                "props": props
             }
             other_rows.append(row)
-            childAnnotationIds.append(row['id'])
-            points.append(row['point'])
+            childAnnotationIds.append(row["id"])
+            points.append(row["point"])
 
+        if len(descriptions) > 0:
+            descriptions = "\n".join(list(descriptions))
         first_row = {}
         first_row["source"] = points[0]
         first_row["centroid"] = np.mean(points, axis=0).tolist()
@@ -97,30 +101,84 @@ class Parsedata:
         first_row["childrenVisible"] = True
         first_row["type"] = "cloud"
         first_row["id"] = f"{parent_id}"
-        first_row["props"] = default_props
+        first_row["props"] = [ f"{first_prop}", 1, 1, 5, 3, 1]
+        first_row["description"] = f"{descriptions}"
 
         reformatted_annotations = []
         reformatted_annotations.append(first_row)
         reformatted_annotations.extend(other_rows)
 
-        print('Updating', state.comments, existing_name, len(reformatted_annotations))
+        print("Updating", state.comments, existing_name, len(reformatted_annotations))
         debug = False
         if debug:
-          for i, row in enumerate(existing_annotations):
-              print(row)
-              if i > 2:
-                  break
+            for i, row in enumerate(existing_annotations):
+                print(row)
+                if i > 2:
+                    break
         else:
 
-          existing_state['layers'][layer_id]['annotations'] = reformatted_annotations
-          state.updated = datetime.datetime.now(datetime.timezone.utc)
-          existing_state['layers'][layer_id]['tool'] =  "annotateCloud"
-          state.neuroglancer_state = existing_state
-          state.save()  
+            existing_state["layers"][layer_id]["annotations"] = reformatted_annotations
+            state.updated = datetime.datetime.now(datetime.timezone.utc)
+            existing_state["layers"][layer_id]["tool"] = "annotateCloud"
+            existing_state["layers"][layer_id]["annotationProperties"] = [
+                {
+                    "id": "color",
+                    "description": "color",
+                    "type": "rgb",
+                    "default": "#ffff00",
+                },
+                {
+                    "id": "visibility",
+                    "description": "visibility",
+                    "type": "float32",
+                    "default": 1,
+                    "min": 0,
+                    "max": 1,
+                    "step": 1,
+                },
+                {
+                    "id": "opacity",
+                    "description": "opacity",
+                    "type": "float32",
+                    "default": 1,
+                    "min": 0,
+                    "max": 1,
+                    "step": 0.01,
+                },
+                {
+                    "id": "point_size",
+                    "description": "point marker size",
+                    "type": "float32",
+                    "default": 5,
+                    "min": 0,
+                    "max": 10,
+                    "step": 0.01,
+                },
+                {
+                    "id": "point_border_width",
+                    "description": "point marker border width",
+                    "type": "float32",
+                    "default": 3,
+                    "min": 0,
+                    "max": 5,
+                    "step": 0.01,
+                },
+                {
+                    "id": "line_width",
+                    "description": "line width",
+                    "type": "float32",
+                    "default": 1,
+                    "min": 0,
+                    "max": 5,
+                    "step": 0.01,
+                },
+            ]
+            state.neuroglancer_state = existing_state
+            state.save()
 
     @staticmethod
     def random_string():
-        return ''.join(random.choices(string.ascii_lowercase + string.digits, k=40))
+        return "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
 
     def parse_annotation(self):
         if self.id > 0:
