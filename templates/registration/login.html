@@ -34,7 +34,7 @@
 
 <div id="content-main">
 
-{% if user.is_authenticated %}
+{% if user.is_authenticated  and username %}
 <p class="errornote">
 {% blocktranslate trimmed %}
     You are authenticated as {{ username }}, but are not authorized to
