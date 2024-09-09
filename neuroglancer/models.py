@@ -112,26 +112,37 @@ class NeuroglancerState(models.Model):
                     name = layer['name']
                     annotations = layer['annotations']
                     # This is for the cloud points
-                    d = [row['point'] for row in annotations if 'point' in row and 'pointA' not in row]
-                    df = pd.DataFrame(d, columns=['X', 'Y', 'Section'])
-                    df['Section'] = df['Section'].astype(int)
-                    df['Layer'] = name
-                    structures = [row['description'] for row in annotations if 'description' in row]
-                    if len(structures) != len(df):
-                        structures = ['point' for row in annotations if 'point' in row and 'pointA' not in row]
-                    df['Description'] = structures
-                    df = df[['Layer', 'Description', 'X', 'Y', 'Section']]
-                    df = df.drop_duplicates()
-                    dfs.append(df)
+                    parentIds = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row))
+                    descriptions = list(set(row["description"] for row in annotations if "description" in row))
+                    if len(descriptions) == 0:
+                        descriptions = ["point"]
+
+                    for i, parentId in enumerate(parentIds):
+                        d = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == parentId]
+                        df = pd.DataFrame(d, columns=['X', 'Y', 'Section'])
+                        df['Section'] = df['Section'].astype(int)
+                        df['Layer'] = name
+
+                        try:
+                            description = str(descriptions[i]).replace('\n', ', ')
+                        except IndexError:
+                            description = "point"
+                        df['Description'] = description
+                        df = df[['Layer', 'Description', 'X', 'Y', 'Section']]
+                        df = df.drop_duplicates()
+                        df.sort_values(by=['Layer', 'Section', 'Description', 'X', 'Y'], inplace=True)
+                        dfs.append(df)
+                    # Finished with cloud points
+
                     # This is for the polygons
                     d = [row['pointA'] for row in annotations if 'pointA' in row and 'point' not in row]
                     df = pd.DataFrame(d, columns=['X', 'Y', 'Section'])
                     df['Section'] = df['Section'].astype(int)
                     df['Layer'] = name
-                    structures = [row['description'] for row in annotations if 'description' in row]
-                    if len(structures) != len(df):
-                        structures = ['polygon' for row in annotations if 'pointA' in row and 'point' not in row]
-                    df['Description'] = structures
+                    descriptions = [row['description'] for row in annotations if 'description' in row]
+                    if len(descriptions) != len(df):
+                        descriptions = ['polygon' for row in annotations if 'pointA' in row and 'point' not in row]
+                    df['Description'] = descriptions
                     df = df[['Layer', 'Description', 'X', 'Y', 'Section']]
                     df = df.drop_duplicates()
                     dfs.append(df)

@@ -50,7 +50,9 @@ display: inline-block;
 
 <div id="content-main" class="container">
 <div style="float:auto; margin: 0px 10px 10px 0;">
+  {% if display %}
   <button id="dl" class="btn">Download</button>
+  {% endif %}
 </div>
 
             {{ chart | safe }}

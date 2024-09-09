@@ -4,6 +4,7 @@ our database portal. This is where the end user can create, retrieve, update and
 metadata associated with the 'Neuroglancer' app. It does not list the fields (database columns). Look 
 in the models document for the database table model. 
 """
+from django.http import HttpResponse
 from django.utils.html import format_html
 from django.db import models
 from django.conf import settings
@@ -13,6 +14,7 @@ from django.urls import reverse, path
 from django.template.response import TemplateResponse
 from plotly.offline import plot
 import plotly.express as px
+from requests import Response
 
 from brainsharer.admin_extensions import AtlasAdminModel, ExportCsvMixin
 from neuroglancer.models import AnnotationLabel, AnnotationSession, \
@@ -110,7 +112,7 @@ class PointsAdmin(admin.ModelAdmin):
     list_display = ('animal', 'open_neuroglancer', 'owner', 'show_points_links', 'updated', 'created')
     ordering = ['-created']
     readonly_fields = ['created', 'updated']
-    search_fields = ['comments']
+    search_fields = ['id', 'comments']
     list_filter = ['created', 'updated', 'readonly']
     exclude = ['neuroglancer_state', 'user_date']
 
@@ -159,7 +161,11 @@ class PointsAdmin(admin.ModelAdmin):
         :param kwargs:
         :return: 3dGraph in a django template
         """
-        neuroglancerState = NeuroglancerState.objects.get(pk=id)
+        try:
+            neuroglancerState = NeuroglancerState.objects.get(pk=id)
+        except Exception as exc:
+            msg = str(exc)
+            return HttpResponse(status=404, content=msg)
         df = neuroglancerState.points
         plot_div = "No points available"
         if df is not None and len(df) > 0:
@@ -168,9 +174,9 @@ class PointsAdmin(admin.ModelAdmin):
                                 color='Layer', opacity=0.7)
             fig.update_layout(
                 scene=dict(
-                    xaxis=dict(nticks=4, range=[20000, 60000], ),
-                    yaxis=dict(nticks=4, range=[10000, 30000], ),
-                    zaxis=dict(nticks=4, range=[0, 450], ), ),
+                    xaxis=dict(nticks=4, range=[df['X'].min(), df['X'].max()], ),
+                    yaxis=dict(nticks=4, range=[df['Y'].min(), df['Y'].max()], ),
+                    zaxis=dict(nticks=4, range=[df['Section'].min(), df['Section'].max()] ), ),
                 width=1200,
                 margin=dict(r=0, l=0, b=0, t=0))
             fig.update_traces(marker=dict(size=2),
@@ -185,7 +191,12 @@ class PointsAdmin(admin.ModelAdmin):
 
     def view_points_data(self, request, id, *args, **kwargs):
         """Provides the HTML link to the table data"""
-        neuroglancerState = NeuroglancerState.objects.get(pk=id)
+        try:
+            neuroglancerState = NeuroglancerState.objects.get(pk=id)
+        except Exception as exc:
+            msg = str(exc)
+            return HttpResponse(status=404, content=msg)
+
         df = neuroglancerState.points
         result = 'No data'
         display = False
