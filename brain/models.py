@@ -190,8 +190,11 @@ class ScanRun(AtlasModel):
                                 default=0, verbose_name="Width (pixels)")
     height = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(100000)], 
                                  default=0, verbose_name="Height (pixels)")
-    rotation = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(3)], default=0)
-    flip = EnumField(choices=['none','flip','flop'], blank=False, null=False, default='none')
+    pi = str('Π').lower()
+    rotation = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(3)], default=0, 
+                                   help_text='0=0°, 1=90°, 2=180°, 3=270°')
+    flip = EnumField(choices=['none','flip','flop'], blank=False, null=False, default='none', 
+                     help_text='Flip switches top to bottom and flop switches left to right')
     MASK_CHOICES = ((0, 'No mask'), (1, 'Full mask'), (2, 'Bottom mask'))
     mask = models.IntegerField(choices=MASK_CHOICES, default=1, verbose_name='Mask image')
     comments = models.TextField(max_length=2001, blank=True, null=True)
