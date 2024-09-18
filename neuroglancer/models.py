@@ -112,40 +112,69 @@ class NeuroglancerState(models.Model):
                     name = layer['name']
                     annotations = layer['annotations']
                     # This is for the cloud points
-                    parentIds = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row))
-                    descriptions = list(set(row["description"] for row in annotations if "description" in row))
-                    if len(descriptions) == 0:
-                        descriptions = ["point"]
+                    parentIds = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row
+                                         and 'type' in row
+                                         and row['type'] == 'point'))
 
-                    for i, parentId in enumerate(parentIds):
+                    for parentId in parentIds:
                         d = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == parentId]
                         df = pd.DataFrame(d, columns=['X', 'Y', 'Section'])
                         df['Section'] = df['Section'].astype(int)
                         df['Layer'] = name
+                        df['Type'] = 'cloud point'
+                        descriptions = [row["description"] for row in annotations if "description" in row 
+                                              and 'type' in row 
+                                              and row['type'] == 'cloud'
+                                              and 'id' in row
+                                              and row['id'] == parentId]
+                        if len(descriptions) == 0:
+                            descriptions = 'unlabeled point'
+                        else:
+                            descriptions = descriptions[0].replace('\n', ', ')
 
-                        try:
-                            description = str(descriptions[i]).replace('\n', ', ')
-                        except IndexError:
-                            description = "point"
-                        df['Description'] = description
-                        df = df[['Layer', 'Description', 'X', 'Y', 'Section']]
+                        df['Description'] = descriptions
+                        df = df[['Layer', 'Type', 'Description', 'X', 'Y', 'Section']]
                         df = df.drop_duplicates()
-                        df.sort_values(by=['Layer', 'Section', 'Description', 'X', 'Y'], inplace=True)
                         dfs.append(df)
                     # Finished with cloud points
 
                     # This is for the polygons
-                    d = [row['pointA'] for row in annotations if 'pointA' in row and 'point' not in row]
-                    df = pd.DataFrame(d, columns=['X', 'Y', 'Section'])
-                    df['Section'] = df['Section'].astype(int)
-                    df['Layer'] = name
-                    descriptions = [row['description'] for row in annotations if 'description' in row]
-                    if len(descriptions) != len(df):
-                        descriptions = ['polygon' for row in annotations if 'pointA' in row and 'point' not in row]
-                    df['Description'] = descriptions
-                    df = df[['Layer', 'Description', 'X', 'Y', 'Section']]
-                    df = df.drop_duplicates()
-                    dfs.append(df)
+                    #volume_ids = list(set(row["id"] for row in annotations if "id" in row
+                    #                     and 'type' in row
+                    #                     and row['type'] == 'volume'))
+                    volume_ids = [row['id'] for row in annotations if "id" in row and 'type' in row and row['type'] == 'volume']
+                    for volume_id in volume_ids:
+                        descriptions = [row["description"] for row in annotations if "description" in row 
+                                                and 'type' in row 
+                                                and row['type'] == 'volume'
+                                                and row['id'] == volume_id]
+                        if len(descriptions) == 0:
+                            descriptions = 'unlabeled polygon'
+                        else:
+                            descriptions = descriptions[0].replace('\n', ', ')
+
+                        polygon_ids = [row["childAnnotationIds"] for row in annotations if "childAnnotationIds" in row 
+                                                and 'type' in row 
+                                                and row['type'] == 'polygon'
+                                                and 'parentAnnotationId' in row
+                                                and row['parentAnnotationId'] == volume_id]
+                        if len(polygon_ids) == 0:
+                            continue
+                        else:
+                            polygon_ids = polygon_ids[0]
+                        
+                        for parentId in polygon_ids:
+                            d = [ row['pointA'] for row in annotations if 'pointA' in row 
+                                 and "id" in row 
+                                 and row["id"] == parentId]
+                            df = pd.DataFrame(d, columns=['X', 'Y', 'Section'])
+                            df['Section'] = df['Section'].astype(int)
+                            df['Layer'] = name
+                            df['Type'] = 'volume'
+                            df['Description'] = descriptions
+                            df = df[['Layer', 'Type', 'Description', 'X', 'Y', 'Section']]
+                            df = df.drop_duplicates()
+                            dfs.append(df)
 
             if len(dfs) == 0:
                 result = None
@@ -153,6 +182,9 @@ class NeuroglancerState(models.Model):
                 result = dfs[0]
             else:
                 result = pd.concat(dfs)
+
+        if result is not None:
+            result.sort_values(by=['Layer', 'Type', 'Description', 'Section', 'X', 'Y'], inplace=True)
         return result
 
     @property

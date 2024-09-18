@@ -38,10 +38,11 @@ def search_label(request, search_string=None):
         print(f'search_string: {search_string}')
         labels = AnnotationLabel.objects\
             .filter(label__icontains=search_string).order_by('label')
-        print(f'labels query: {labels.query}')
         for row in labels:
             data.append({"id": row.id, "label_type": row.label_type, "label": row.label})
-        print(f'data: {data}')
+        if DEBUG:
+            print(f'labels query: {labels.query}')
+            print(f'data: {data}')
     serializer = LabelSerializer(data, many=True)
     return Response(serializer.data)
 

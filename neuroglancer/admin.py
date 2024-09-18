@@ -202,7 +202,6 @@ class PointsAdmin(admin.ModelAdmin):
         display = False
         if df is not None and len(df) > 0:
             display = True
-            df = df.sort_values(by=['Layer', 'Section', 'X', 'Y'])
             result = df.to_html(
                 index=False, classes='table table-striped table-bordered', table_id='tab')
         context = dict(
