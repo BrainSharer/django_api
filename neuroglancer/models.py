@@ -24,7 +24,7 @@ class NeuroglancerState(models.Model):
     """Model corresponding to the neuroglancer json states stored in the neuroglancer_state table.
     This name was used as the original verion of Neuroglancer stored all the data in the URL.
     """
-    
+
     id = models.BigAutoField(primary_key=True)
     neuroglancer_state = models.JSONField(verbose_name="Neuroglancer State")
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, null=False,
@@ -46,7 +46,7 @@ class NeuroglancerState(models.Model):
     @property
     def escape_url(self):
         return escape(self.neuroglancer_state)
-    
+
     @property
     def user(self):
         first_name = "NA"
@@ -112,16 +112,22 @@ class NeuroglancerState(models.Model):
                     name = layer['name']
                     annotations = layer['annotations']
                     # This is for the cloud points
-                    parentIds = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row
+                    #print()
+                    #for row in annotations:
+                    #    if row['type'] == 'line' or row['type'] == 'polygon' or row['type'] == 'volume':
+                    #        print(row)
+                    #        print()
+                    cloud_ids = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row
                                          and 'type' in row
                                          and row['type'] == 'point'))
 
-                    for parentId in parentIds:
-                        d = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == parentId]
-                        df = pd.DataFrame(d, columns=['X', 'Y', 'Section'])
+                    for parentId in cloud_ids:
+                        points = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == parentId]
+                        df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
                         df['Section'] = df['Section'].astype(int)
                         df['Layer'] = name
                         df['Type'] = 'cloud point'
+                        df['UUID'] = parentId
                         descriptions = [row["description"] for row in annotations if "description" in row 
                                               and 'type' in row 
                                               and row['type'] == 'cloud'
@@ -132,18 +138,22 @@ class NeuroglancerState(models.Model):
                         else:
                             descriptions = descriptions[0].replace('\n', ', ')
 
-                        df['Description'] = descriptions
-                        df = df[['Layer', 'Type', 'Description', 'X', 'Y', 'Section']]
-                        df = df.drop_duplicates()
+                        df['Labels'] = descriptions
+                        df = df[['Layer', 'Type', 'Labels', 'UUID', 'X', 'Y', 'Section']]
                         dfs.append(df)
-                    # Finished with cloud points
+                    ##### Finished with cloud points
 
-                    # This is for the polygons
-                    #volume_ids = list(set(row["id"] for row in annotations if "id" in row
-                    #                     and 'type' in row
-                    #                     and row['type'] == 'volume'))
+                    ##### This is for the volumes/polygons
+                    ##### For each volume, get all the polygons and then for each polygon, get all the points
                     volume_ids = [row['id'] for row in annotations if "id" in row and 'type' in row and row['type'] == 'volume']
                     for volume_id in volume_ids:
+                        polygon_ids = [row['id'] for row in annotations if "id" in row 
+                                       and 'type' in row 
+                                       and row['type'] == 'polygon'
+                                       and 'parentAnnotationId' in row
+                                       and row['parentAnnotationId'] == volume_id]
+                        
+                        # The description is associated with a volume, not a polygon
                         descriptions = [row["description"] for row in annotations if "description" in row 
                                                 and 'type' in row 
                                                 and row['type'] == 'volume'
@@ -152,39 +162,37 @@ class NeuroglancerState(models.Model):
                             descriptions = 'unlabeled polygon'
                         else:
                             descriptions = descriptions[0].replace('\n', ', ')
-
-                        polygon_ids = [row["childAnnotationIds"] for row in annotations if "childAnnotationIds" in row 
-                                                and 'type' in row 
-                                                and row['type'] == 'polygon'
-                                                and 'parentAnnotationId' in row
-                                                and row['parentAnnotationId'] == volume_id]
-                        if len(polygon_ids) == 0:
-                            continue
-                        else:
-                            polygon_ids = polygon_ids[0]
                         
-                        for parentId in polygon_ids:
-                            d = [ row['pointA'] for row in annotations if 'pointA' in row 
-                                 and "id" in row 
-                                 and row["id"] == parentId]
-                            df = pd.DataFrame(d, columns=['X', 'Y', 'Section'])
+                        for polygon_id in polygon_ids:
+                            points = [
+                                row["pointA"]
+                                for row in annotations
+                                if "pointA" in row
+                                and "type" in row
+                                and row["type"] == "line"
+                                and "parentAnnotationId" in row
+                                and row["parentAnnotationId"] == polygon_id
+                            ]
+
+                            if DEBUG:
+                                print(f'Creating dataframe with volume_id={volume_id} polygon_id={polygon_id} len points={len(points)}')
+                            df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
                             df['Section'] = df['Section'].astype(int)
                             df['Layer'] = name
                             df['Type'] = 'volume'
-                            df['Description'] = descriptions
-                            df = df[['Layer', 'Type', 'Description', 'X', 'Y', 'Section']]
-                            df = df.drop_duplicates()
+                            df['UUID'] = polygon_id
+                            df['Labels'] = descriptions
+                            df = df[['Layer', 'Type', 'Labels', 'UUID', 'X', 'Y', 'Section']]
                             dfs.append(df)
 
             if len(dfs) == 0:
-                result = None
+                return None
             elif len(dfs) == 1:
                 result = dfs[0]
             else:
                 result = pd.concat(dfs)
 
-        if result is not None:
-            result.sort_values(by=['Layer', 'Type', 'Description', 'Section', 'X', 'Y'], inplace=True)
+        result.sort_values(by=['Layer', 'Type', 'Labels', 'UUID', 'Section', 'X', 'Y'], inplace=True)
         return result
 
     @property
@@ -218,7 +226,6 @@ class NeuroglancerState(models.Model):
             if len(df) > 0:
                 result = "display:inline;"
         return result
-
 
     def find_values(self, id, json_repr):
         results = []
@@ -267,14 +274,14 @@ class BrainRegion(AtlasModel):
 
     def __str__(self):
         return f'{self.description} {self.abbreviation}'
-    
+
 def get_region_from_abbreviation(abbreviation):
     if abbreviation is None or abbreviation == '':
         abbreviation = 'polygon'
     brainRegion = BrainRegion.objects.filter(abbreviation=abbreviation).first()
     return brainRegion
 
-    
+
 class SearchSessions(models.Model):
     id = models.BigAutoField(primary_key=True)
     animal_abbreviation_username = models.CharField(max_length=2001, null=False, db_column="animal_abbreviation_username", verbose_name="Animal")
@@ -346,7 +353,3 @@ class Points(NeuroglancerState):
         proxy = True
         verbose_name = 'Layer points/polygons'
         verbose_name_plural = 'Layer points/polygons'
-
-
-
-
