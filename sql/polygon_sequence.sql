@@ -29,3 +29,11 @@ desc brain_region;
 select * from elastix_transformation et where et.FK_prep_id = 'MD658' order by section;
 update elastix_transformation set rotation = 1, xshift=0 where id = 66679;
 delete from elastix_transformation where FK_prep_id = 'MD658' and section < 21;
+
+
+select flip, count(*) as c
+from scan_run sr 
+group by flip
+order by flip;
+
+desc elastix_transformation ; 

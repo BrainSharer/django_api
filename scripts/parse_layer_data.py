@@ -29,7 +29,10 @@ class Parsedata:
             states = [state]
         else:
             # These IDs are from Marissa
-            ids = [586,593,651,658,669,682,688,704,804,623,610,727,774,785,800,755,772,784,802]
+            # ids = [586,593,651,658,669,682,688,704,804,623,610,727,774,785,800,755,772,784,802]
+            # Polygon IDs that need to be updated
+            ids = [882]
+
             states = NeuroglancerState.objects.filter(pk__in=ids).all()
         for state in states:
             layer_ids_to_update = []
@@ -40,11 +43,13 @@ class Parsedata:
                 if 'annotations' in layer: # We will be updating this layer in the state
                     existing_layer = layer # dictionary
                     layer_ids_to_update.append(i)
+
             for layer_id in layer_ids_to_update:
                 self.create_new_annotation_data(state.id, layer_id, self.debug)
 
     @staticmethod
     def create_new_annotation_data(neuroglancer_state_id, layer_id, debug):
+        print("Creating new annotation data for layer", layer_id)
         default_props = ["#ffff00", 1, 1, 5, 3, 1]
 
         state = NeuroglancerState.objects.get(pk=neuroglancer_state_id)
@@ -53,6 +58,7 @@ class Parsedata:
 
         existing_name = existing_state["layers"][layer_id]["name"]
         if len(existing_annotations) == 0:
+            print("No annotations found for", state.comments, existing_name)
             return
         
         existing_state["layers"][layer_id]["annotations"] = []
@@ -74,11 +80,10 @@ class Parsedata:
                 first_annotation = existing_annotations[0]
                 
             first_prop = first_annotation["props"][0]
-            category = first_annotation["category"]
-            if description is None:
-                description_and_category = f"{category}"
-            else:
-                description_and_category = f"{category}\n{description}"
+
+            description_and_category = description
+            if "category" in first_annotation and first_annotation["category"] is not None:
+                description_and_category = f'{first_annotation["category"]}\n{description}'
 
             for i, row in enumerate(existing_annotations):
                 if "point" in row:
@@ -102,6 +107,10 @@ class Parsedata:
                 other_rows.append(row)
                 childAnnotationIds.append(row["id"])
                 points.append(row["point"])
+
+            if len(points) == 0:
+                print(f"No points found for {state.comments} layer name={existing_name} {description}")
+                return
 
             first_row = {}
             first_row["source"] = points[0]
@@ -129,9 +138,12 @@ class Parsedata:
         existing_state["layers"][layer_id]["tool"] = "annotateCloud"
         existing_state["layers"][layer_id]["annotationProperties"] = create_json_header()
 
-        state.neuroglancer_state = existing_state
-        state.save()
-        print("Updated", state.comments, existing_name, len(reformatted_annotations))
+        if debug:
+            print('Finished debugging', state.comments, existing_name, len(reformatted_annotations))
+        else:
+            state.neuroglancer_state = existing_state
+            state.save()
+            print("Updated", state.comments, existing_name, len(reformatted_annotations))
 
     
     @staticmethod
