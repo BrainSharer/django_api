@@ -109,7 +109,7 @@ class PointsAdmin(admin.ModelAdmin):
     from the actual JSON and not the annotation JSON.
     """
 
-    list_display = ('animal', 'open_neuroglancer', 'owner', 'show_points_links', 'updated', 'created')
+    list_display = ('id', 'animal', 'open_neuroglancer', 'owner', 'show_points_links', 'updated', 'created')
     ordering = ['-created']
     readonly_fields = ['created', 'updated']
     search_fields = ['id', 'comments']

@@ -47,6 +47,87 @@ class Parsedata:
             for layer_id in layer_ids_to_update:
                 self.create_new_annotation_data(state.id, layer_id, self.debug)
 
+    def parse_annotations(self):
+        if self.id > 0:
+            try:
+                state = NeuroglancerState.objects.get(pk=self.id)
+            except NeuroglancerState.DoesNotExist:
+                print(f'ID={self.id} not found, returning ...')
+                return
+        else:
+            print('No ID was provided, returning ...')
+            return
+        layer_ids_to_update = []
+        print(state.id, state.comments, end="\t")
+        existing_state = state.neuroglancer_state # big JSON
+        layers = existing_state['layers'] # list of dictionaries
+        for i, layer in enumerate(layers): # layers is a list
+            if 'annotations' in layer: # We will be updating this layer in the state
+                self.show_annotations(layer)
+
+    @staticmethod
+    def show_annotations(layer):
+        name = layer['name']
+        annotations = layer['annotations']
+        print(f'Layer={name}')
+        total_points = 0
+        cloud_ids = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row
+                                and 'type' in row
+                                and row['type'] == 'point'))
+
+        for parentId in cloud_ids:
+            points = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == parentId]
+            descriptions = [row["description"] for row in annotations if "description" in row 
+                                    and 'type' in row 
+                                    and row['type'] == 'cloud'
+                                    and 'id' in row
+                                    and row['id'] == parentId]
+            if len(descriptions) == 0:
+                descriptions = 'unlabeled point'
+            else:
+                descriptions = descriptions[0].replace('\n', ', ')
+            print('Cloud description'.ljust(20), str(descriptions).ljust(40), 'points', len(points))
+            total_points += len(points)
+        ##### Finished with cloud points
+        ##### This is for the volumes/polygons
+        ##### For each volume, get all the polygons and then for each polygon, get all the points
+        volume_ids = [row['id'] for row in annotations if "id" in row and 'type' in row and row['type'] == 'volume']
+        for volume_id in volume_ids:
+            polygon_ids = [row['id'] for row in annotations if "id" in row 
+                            and 'type' in row 
+                            and row['type'] == 'polygon'
+                            and 'parentAnnotationId' in row
+                            and row['parentAnnotationId'] == volume_id]
+            
+            # The description is associated with a volume, not a polygon
+            descriptions = [row["description"] for row in annotations if "description" in row 
+                                    and 'type' in row 
+                                    and row['type'] == 'volume'
+                                    and row['id'] == volume_id]
+            if len(descriptions) == 0:
+                descriptions = 'unlabeled polygon'
+            else:
+                descriptions = descriptions[0].replace('\n', ', ')
+            number_of_points = 0
+            for polygon_id in polygon_ids:
+                points = [
+                    row["pointA"]
+                    for row in annotations
+                    if "pointA" in row
+                    and "type" in row
+                    and row["type"] == "line"
+                    and "parentAnnotationId" in row
+                    and row["parentAnnotationId"] == polygon_id
+                ]
+                number_of_points += len(points)
+
+            total_points += number_of_points
+
+            print('Volume descriptions'.ljust(20), str(descriptions).ljust(40), 'polygons', 
+                  str(len(polygon_ids)).rjust(5),  
+                  'points', str(number_of_points).rjust(5))
+        print(f'Total points={total_points}')
+
     @staticmethod
     def create_new_annotation_data(neuroglancer_state_id, layer_id, debug):
         print("Creating new annotation data for layer", layer_id)
@@ -245,7 +326,8 @@ if __name__ == '__main__':
 
     function_mapping = {
             "session": pipeline.parse_annotation,
-            "state": pipeline.parse_neuroglancer_state
+            "state": pipeline.parse_neuroglancer_state,
+            "show": pipeline.parse_annotations,
         }
 
     if task in function_mapping:
