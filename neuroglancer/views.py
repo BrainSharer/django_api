@@ -113,7 +113,7 @@ class AnnotationPrivateViewSet(APIView):
     queryset = AnnotationSession.objects.all()
     # permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request, session_id):
+    def get(self, request, session_id=None):
         if DEBUG:
             print('AnnotationPrivateViewSet.get')
         session = {}
@@ -122,8 +122,11 @@ class AnnotationPrivateViewSet(APIView):
                 data = AnnotationSession.objects.get(pk=session_id)
             except AnnotationSession.DoesNotExist:
                 return Response({"details": "Annotation record does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            
             session['id'] = data.id
             session['annotation'] = data.annotation
+        else:
+            return Response({"details": "Session ID is missing."}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = AnnotationSessionDataSerializer(session, many=False)
         return Response(serializer.data)
