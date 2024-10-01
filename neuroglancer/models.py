@@ -111,12 +111,6 @@ class NeuroglancerState(models.Model):
                 if 'annotations' in layer:
                     name = layer['name']
                     annotations = layer['annotations']
-                    # This is for the cloud points
-                    #print()
-                    #for row in annotations:
-                    #    if row['type'] == 'line' or row['type'] == 'polygon' or row['type'] == 'volume':
-                    #        print(row)
-                    #        print()
                     cloud_ids = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row
                                          and 'type' in row
                                          and row['type'] == 'point'))
@@ -128,6 +122,7 @@ class NeuroglancerState(models.Model):
                         df['Layer'] = name
                         df['Type'] = 'cloud point'
                         df['UUID'] = parentId
+                        df['Order'] = 0
                         descriptions = [row["description"] for row in annotations if "description" in row 
                                               and 'type' in row 
                                               and row['type'] == 'cloud'
@@ -139,7 +134,7 @@ class NeuroglancerState(models.Model):
                             descriptions = descriptions[0].replace('\n', ', ')
 
                         df['Labels'] = descriptions
-                        df = df[['Layer', 'Type', 'Labels', 'UUID', 'X', 'Y', 'Section']]
+                        df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section']]
                         dfs.append(df)
                     ##### Finished with cloud points
 
@@ -164,8 +159,8 @@ class NeuroglancerState(models.Model):
                             descriptions = descriptions[0].replace('\n', ', ')
                         
                         for polygon_id in polygon_ids:
-                            points = [
-                                row["pointA"]
+                            rows = [
+                                row
                                 for row in annotations
                                 if "pointA" in row
                                 and "type" in row
@@ -173,16 +168,26 @@ class NeuroglancerState(models.Model):
                                 and "parentAnnotationId" in row
                                 and row["parentAnnotationId"] == polygon_id
                             ]
+                            points = [row['pointA'] for row in rows]
+                            orders = [0]
+                            for i, point in enumerate(rows):
+                                if i > 0 and rows[i]['pointA'] == rows[i-1]['pointB']:
+                                    #print(i, points[i]['pointA'], points[i-1]['pointB'])
+                                    orders.append(i)
+
 
                             if DEBUG:
-                                print(f'Creating dataframe with volume_id={volume_id} polygon_id={polygon_id} len points={len(points)}')
+                                print(f'Creating dataframe with volume_id={volume_id} polygon_id={polygon_id} len points={len(points)} len orders={len(orders)}')
                             df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
                             df['Section'] = df['Section'].astype(int)
                             df['Layer'] = name
                             df['Type'] = 'volume'
                             df['UUID'] = polygon_id
+                            if len(orders) != len(points):
+                                orders = 999
+                            df['Order'] = orders
                             df['Labels'] = descriptions
-                            df = df[['Layer', 'Type', 'Labels', 'UUID', 'X', 'Y', 'Section']]
+                            df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section']]
                             dfs.append(df)
 
             if len(dfs) == 0:
@@ -192,7 +197,7 @@ class NeuroglancerState(models.Model):
             else:
                 result = pd.concat(dfs)
 
-        result.sort_values(by=['Layer', 'Type', 'Labels', 'UUID', 'Section', 'X', 'Y'], inplace=True)
+        result.sort_values(by=['Layer', 'Type', 'Labels', 'UUID', 'Section', 'Order', 'X', 'Y'], inplace=True)
         return result
 
     @property
