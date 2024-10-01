@@ -170,11 +170,9 @@ class NeuroglancerState(models.Model):
                             ]
                             points = [row['pointA'] for row in rows]
                             orders = [0]
-                            for i, point in enumerate(rows):
+                            for i, _ in enumerate(rows):
                                 if i > 0 and rows[i]['pointA'] == rows[i-1]['pointB']:
-                                    #print(i, points[i]['pointA'], points[i-1]['pointB'])
                                     orders.append(i)
-
 
                             if DEBUG:
                                 print(f'Creating dataframe with volume_id={volume_id} polygon_id={polygon_id} len points={len(points)} len orders={len(orders)}')
