@@ -120,16 +120,16 @@ class Parsedata:
                     and row["parentAnnotationId"] == polygon_id
                 ]
                 number_of_points += len(points)
-                for i, point in enumerate(points):
-                    if i > 0 and points[i]['pointA'] == points[i-1]['pointB'] and point['parentAnnotationId'] == 'f2106f758f855d56cf0faa5a8d99b1305898f472':
-                        print(i, points[i]['pointA'], points[i-1]['pointB'])
-                        print(point)
+                #for i, point in enumerate(points):
+                #    if i > 0 and points[i]['pointA'] == points[i-1]['pointB'] and point['parentAnnotationId'] == 'f2106f758f855d56cf0faa5a8d99b1305898f472':
+                #        print(i, points[i]['pointA'], points[i-1]['pointB'])
+                #        print(point)
             total_points += number_of_points
-            continue
+            
             print('Volume descriptions'.ljust(20), str(descriptions).ljust(40), 'polygons', 
                   str(len(polygon_ids)).rjust(5),  
                   'points', str(number_of_points).rjust(5))
-        #print(f'Total points={total_points}')
+        print(f'Total points={total_points}')
 
     @staticmethod
     def create_new_annotation_data(neuroglancer_state_id, layer_id, debug):

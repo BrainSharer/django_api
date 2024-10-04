@@ -1,13 +1,10 @@
 from django.db import models
 from django.conf import settings
 from django.utils.html import escape
-from django.utils.safestring import mark_safe
-from django.utils.translation import gettext_lazy
 import re
 import json
 import pandas as pd
 from django.template.defaultfilters import truncatechars
-from authentication.models import Lab
 from brain.models import AtlasModel, Animal
 from django_mysql.models import EnumField
 
@@ -100,6 +97,26 @@ class NeuroglancerState(models.Model):
                 df = df.round(decimals=0)
         return df
 
+    @staticmethod
+    def resort_points(rows):
+        """Reorders a list of dictionaries based on the previous value of a specified key."""
+
+        if not rows:
+            return rows
+
+        result = [rows[0]]  # Start with the first dictionary
+        for i in range(1, len(rows)):
+            for j in range(i):
+                if rows[i]['pointA'] == result[j]['pointB']:
+                    result.insert(j + 1, rows[i])
+                    break
+            else:
+                result.append(rows[i])
+
+        return result
+
+
+
     @property
     def points(self):
         result = None
@@ -168,21 +185,30 @@ class NeuroglancerState(models.Model):
                                 and "parentAnnotationId" in row
                                 and row["parentAnnotationId"] == polygon_id
                             ]
-                            points = [row['pointA'] for row in rows]
-                            orders = [0]
-                            for i, _ in enumerate(rows):
-                                if i > 0 and rows[i]['pointA'] == rows[i-1]['pointB']:
-                                    orders.append(i)
+                            first = [round(x) for x in rows[0]['pointA']]
+                            last = [round(x) for x in rows[-1]['pointB']] 
 
-                            if DEBUG:
-                                print(f'Creating dataframe with volume_id={volume_id} polygon_id={polygon_id} len points={len(points)} len orders={len(orders)}')
+                            if first != last:
+                                rows = self.resort_points(rows)
+
+                            if DEBUG and first != last:
+                                print()
+                                first = [round(x) for x in rows[0]['pointA']]
+                                last = [round(x) for x in rows[-1]['pointB']] 
+                                print(f'Sorted {descriptions} firstA={first} lastB={last} len points={len(rows)} first = last {first == last}')
+                                for i, row in enumerate(rows):
+                                    currentA = [round(x) for x in rows[i]['pointA']]
+                                    currentB = [round(x) for x in rows[i]['pointB']]
+                                    beforeB = [round(x) for x in rows[i-1]['pointB']]
+                                    print(f"pointA{i}={currentA} pointB{i}={currentB} pointB{i-1}={beforeB} currentA = beforeB {currentA == beforeB}')")
+                 
+                            points = [row['pointA'] for row in rows]
+                            orders = [o for o in range(1, len(points) + 1)]
                             df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
                             df['Section'] = df['Section'].astype(int)
                             df['Layer'] = name
                             df['Type'] = 'volume'
-                            df['UUID'] = polygon_id
-                            if len(orders) != len(points):
-                                orders = 999
+                            df['UUID'] = volume_id
                             df['Order'] = orders
                             df['Labels'] = descriptions
                             df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section']]
@@ -194,6 +220,10 @@ class NeuroglancerState(models.Model):
                 result = dfs[0]
             else:
                 result = pd.concat(dfs)
+
+        if DEBUG:
+            unique_values = result['UUID'].unique()
+            print(unique_values)
 
         result.sort_values(by=['Layer', 'Type', 'Labels', 'UUID', 'Section', 'Order', 'X', 'Y'], inplace=True)
         return result
