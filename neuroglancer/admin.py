@@ -228,8 +228,8 @@ class PointsAdmin(admin.ModelAdmin):
 
 @admin.register(AnnotationData)
 class AnnotationDataAdmin(admin.ModelAdmin):
-    list_display = ['animal', 'get_labels', 'annotation_type', 'annotator', 'created', 'updated']
-    ordering = ['animal', 'created', 'annotator']
+    list_display = ['id', 'animal', 'get_labels', 'annotation_type', 'annotator', 'created', 'updated']
+    ordering = ['-created', 'annotator']
     list_filter = ['created', 'updated']
     search_fields = ['animal__prep_id', 'annotator__first_name', 'labels__label']
     readonly_fields = ['created', 'updated']
