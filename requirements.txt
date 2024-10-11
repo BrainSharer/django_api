@@ -1,4 +1,4 @@
-abakit @ file:///home/eddyod/programming/abakit
+#abakit @ file:///home/eddyod/programming/abakit
 alabaster==0.7.16
 argon2-cffi==21.3.0
 argon2-cffi-bindings==21.2.0
