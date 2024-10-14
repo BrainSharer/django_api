@@ -91,11 +91,19 @@ class Histology(AtlasModel):
     whole_brain = models.CharField(max_length=1, blank=True, null=True)
     block = models.CharField(max_length=200, blank=True, null=True)
     date_sectioned = models.DateField(blank=True, null=True)
-    side_sectioned_first = EnumField(choices=[('ASC', 'Left'), ('DESC','Right')], blank=False, null=False, default = 'ASC')
+    orientation = EnumField(choices=['coronal','horizontal','sagittal','oblique'], blank=True, null=True)
+    #side_sectioned_first = EnumField(choices=[('ASC', 'Left'), ('DESC','Right')], blank=False, null=False, default = 'ASC')
+    side_sectioned_first = EnumField(choices=[
+        ('Left', 'Left'),
+        ('Right', 'Right'),
+        ('Dorsal', 'Dorsal'),
+        ('Ventral', 'Ventral'),
+        ('Anterior', 'Anterior'),
+        ('Posterior', 'Posterior')
+    ], blank=False, null=False)
     scene_order = EnumField(choices=[('ASC', 'Ascending'), ('DESC','Desending')], blank=False, null=False, default = 'ASC')
     sectioning_method = EnumField(choices=['cryoJane','cryostat','vibratome','optical','sliding microtiome'], blank=True, null=True)
     section_thickness = models.PositiveIntegerField(verbose_name="Z Resolution (µm)", default=20)
-    orientation = EnumField(choices=['coronal','horizontal','sagittal','oblique'], blank=True, null=True)
     oblique_notes = models.CharField(max_length=200, blank=True, null=True)
     mounting = EnumField(choices=['every section','2nd','3rd','4th','5ft','6th'], blank=True, null=True)
     counterstain = EnumField(choices=['thionin','NtB','NtFR','DAPI','Giemsa','Syto41','NTB/thionin', 'NTB/PRV-eGFP', 'NTB/PRV', 'NTB/ChAT/ΔGRV', 'NTB/ChAT/Ai14'], 
@@ -107,6 +115,18 @@ class Histology(AtlasModel):
         db_table = 'histology'
         verbose_name = 'Histology'
         verbose_name_plural = 'Histologies'
+
+    def save(self, *args, **kwargs):
+        # Dynamically set side_sectioned_first based on orientation
+        if self.orientation == 'horizontal':
+            self.side_sectioned_first = 'Dorsal'
+        elif self.orientation == 'coronal':
+            self.side_sectioned_first = 'Anterior'
+        elif self.orientation == 'sagittal':
+            self.side_sectioned_first = 'Left'
+        else:
+            self.side_sectioned_first = 'Left'  # Default to Left if other orientation is selected or if empty
+        super().save(*args, **kwargs)
 
     def __str__(self):
         if self.virus is not None and self.virus.virus_name is not None:
