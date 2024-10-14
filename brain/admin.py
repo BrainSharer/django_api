@@ -319,20 +319,227 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
     def previous_preview_tag(self, obj):
         png = self.previous_slide.file_name.replace('czi', 'png')
         thumbnail = f"https://imageserv.dk.ucsd.edu/data/{self.previous_slide.scan_run.prep}/slides_preview/{png}"
-        return mark_safe(f'<h3>{self.previous_slide.file_name} {self.previous_slide.checksum}</h3><img src="{thumbnail}" alt="previous preview"/>')
+        full_res_png = png.replace('.png', '_full.png')
+        full_res_url = f"https://imageserv.dk.ucsd.edu/data/{self.previous_slide.scan_run.prep}/slides_preview/{full_res_png}"
+        full_checksum = self.previous_slide.checksum
+        truncated_checksum = full_checksum[-6:]
+
+        toggle_script = f"""
+            <script>
+            function togglePreviousChecksum(element) {{
+                var fullChecksum = "{full_checksum}";
+                var truncatedChecksum = "{truncated_checksum}";
+                if (element.textContent === truncatedChecksum) {{
+                    element.textContent = fullChecksum;
+                    element.title = "Click to show truncated checksum";
+                }} else {{
+                    element.textContent = truncatedChecksum;
+                    element.title = "Click to show entire sha256 checksum";
+                }}
+            }}
+            </script>
+            """
+        checksum_display = f'<span onclick="togglePreviousChecksum(this)" style="cursor: pointer; color: blue; text-decoration: underline;" title="Click to show entire sha256 checksum">{truncated_checksum}</span>'
+        return mark_safe(f'''{toggle_script} 
+        <a href="{full_res_url}" target="_blank"><img src="{thumbnail}" alt="previous preview" style="cursor: pointer;" title="Click to view full resolution in new window"/></a>
+        <caption><h3>{self.previous_slide.file_name} ({checksum_display})</h3></caption>''')
     previous_preview_tag.short_description = 'Previous' 
 
     def current_preview_tag(self, obj):
         png = obj.file_name.replace('czi', 'png')
         thumbnail = f"https://imageserv.dk.ucsd.edu/data/{obj.scan_run.prep}/slides_preview/{png}"
-        return mark_safe(f'<h3>{obj.file_name} {obj.checksum}</h3><img src="{thumbnail}" alt="current preview"/>')
+        full_res_png = png.replace('.png', '_full.png')
+        full_res_url = f"https://imageserv.dk.ucsd.edu/data/{obj.scan_run.prep}/slides_preview/{full_res_png}"
+        full_checksum = obj.checksum
+        truncated_checksum = full_checksum[-6:]
+
+        toggle_script = f"""
+            <script>
+            function toggleChecksum(element) {{
+                var fullChecksum = "{full_checksum}";
+                var truncatedChecksum = "{truncated_checksum}";
+                if (element.textContent === truncatedChecksum) {{
+                    element.textContent = fullChecksum;
+                    element.title = "Click to show truncated checksum";
+                }} else {{
+                    element.textContent = truncatedChecksum;
+                    element.title = "Click to show entire sha256 checksum";
+                }}
+            }}
+            </script>
+            """
+        checksum_display = f'<span onclick="toggleChecksum(this)" style="cursor: pointer; color: blue; text-decoration: underline;" title="Click to show entire sha256 checksum">{truncated_checksum}</span>'
+        return mark_safe(f'''{toggle_script}
+        <a href="{full_res_url}" target="_blank"><img src="{thumbnail}" alt="current preview" style="cursor: pointer;" title="Click to view full resolution in new window"/></a>
+        <caption><h3>{obj.file_name} ({checksum_display})</h3></caption>''')
     current_preview_tag.short_description = 'Current'
 
     def following_preview_tag(self, obj):
         png = self.following_slide.file_name.replace('czi', 'png')
         thumbnail = f"https://imageserv.dk.ucsd.edu/data/{self.following_slide.scan_run.prep}/slides_preview/{png}"
-        return mark_safe(f'<h3>{self.following_slide.file_name} {self.following_slide.checksum}</h3><img src="{thumbnail}" alt="following preview"/>')
-    following_preview_tag.short_description = 'Following'
+        full_res_png = png.replace('.png', '_full.png')
+        full_res_url = f"https://imageserv.dk.ucsd.edu/data/{self.following_slide.scan_run.prep}/slides_preview/{full_res_png}"
+        full_checksum = self.following_slide.checksum
+        truncated_checksum = full_checksum[-6:]
+
+        toggle_script = f"""
+            <script>
+            function toggleFollowingChecksum(element) {{
+                var fullChecksum = "{full_checksum}";
+                var truncatedChecksum = "{truncated_checksum}";
+                if (element.textContent === truncatedChecksum) {{
+                    element.textContent = fullChecksum;
+                    element.title = "Click to show truncated checksum";
+                }} else {{
+                    element.textContent = truncatedChecksum;
+                    element.title = "Click to show entire sha256 checksum";
+                }}
+            }}
+            </script>
+            """
+        checksum_display = f'<span onclick="toggleFollowingChecksum(this)" style="cursor: pointer; color: blue; text-decoration: underline;" title="Click to show entire sha256 checksum">{truncated_checksum}</span>'
+        return mark_safe(f'''{toggle_script}
+        <a href="{full_res_url}" target="_blank"><img src="{thumbnail}" alt="next slide preview" style="cursor: pointer;" title="Click to view full resolution in new window"/></a>
+        <caption><h3>{self.following_slide.file_name} ({checksum_display})</h3></caption>''')
+    following_preview_tag.short_description = 'Next'
+
+    def slide_preview_carousel(self, obj):
+        # Generate content for previous, current, and next slides
+        previous_content = self.previous_preview_tag(obj)
+        current_content = self.current_preview_tag(obj)
+        following_content = self.following_preview_tag(obj)  # Assuming you have a following tag similar to previous/current
+
+        # Create the carousel HTML structure
+        carousel_html = f"""
+        <div class="slideshow-container">
+            <div class="mySlides fade">
+                <div class="numbertext">1 / 3</div>
+                {previous_content}
+            </div>
+            <div class="mySlides fade">
+                <div class="numbertext">2 / 3</div>
+                {current_content}
+            </div>
+            <div class="mySlides fade">
+                <div class="numbertext">3 / 3</div>
+                {following_content}
+            </div>
+
+            <!-- Next and previous buttons -->
+            <a class="prev" onclick="plusSlides(-1)">❮</a>
+            <a class="next" onclick="plusSlides(1)">❯</a>
+        </div>
+
+        <!-- The dots/circles -->
+        <div style="text-align:center">
+            <span class="dot" onclick="currentSlide(1)"></span>
+            <span class="dot" onclick="currentSlide(2)"></span>
+            <span class="dot" onclick="currentSlide(3)"></span>
+        </div>
+        """
+
+        # Add necessary CSS and JavaScript for the carousel
+        carousel_css = """
+        <style>
+        * {box-sizing: border-box;}
+        .slideshow-container {
+        max-width: 1000px;
+        position: relative;
+        margin: auto;
+        }
+        .mySlides {
+        display: none;
+        }
+        img {
+        vertical-align: middle;
+        width: 100%; /* Adjust to fit */
+        }
+        /* Next & previous buttons */
+        .prev, .next {
+        cursor: pointer;
+        position: absolute;
+        top: 50%;
+        width: auto;
+        padding: 16px;
+        margin-top: -22px;
+        color: white;
+        font-weight: bold;
+        font-size: 18px;
+        transition: 0.6s ease;
+        border-radius: 0 3px 3px 0;
+        user-select: none;
+        }
+        .next {
+        right: 0;
+        border-radius: 3px 0 0 3px;
+        }
+        .prev:hover, .next:hover {
+        background-color: rgba(0,0,0,0.8);
+        }
+        /* Dots/bullets/indicators */
+        .dot {
+        cursor: pointer;
+        height: 15px;
+        width: 15px;
+        margin: 0 2px;
+        background-color: #bbb;
+        border-radius: 50%;
+        display: inline-block;
+        transition: background-color 0.6s ease;
+        }
+        .active, .dot:hover {
+        background-color: #717171;
+        }
+        /* Fading animation */
+        .fade {
+        animation-name: fade;
+        animation-duration: 1.5s;
+        }
+        @keyframes fade {
+        from {opacity: .4}
+        to {opacity: 1}
+        }
+        </style>
+        """
+
+        # JavaScript for slide functionality
+        carousel_js = """
+        <script>
+        let slideIndex = 1;
+        showSlides(slideIndex);
+
+        function plusSlides(n) {
+        showSlides(slideIndex += n);
+        }
+
+        function currentSlide(n) {
+        showSlides(slideIndex = n);
+        }
+
+        function showSlides(n) {
+        let i;
+        let slides = document.getElementsByClassName("mySlides");
+        let dots = document.getElementsByClassName("dot");
+        if (n > slides.length) {slideIndex = 1}
+        if (n < 1) {slideIndex = slides.length}
+        for (i = 0; i < slides.length; i++) {
+            slides[i].style.display = "none";
+        }
+        for (i = 0; i < dots.length; i++) {
+            dots[i].className = dots[i].className.replace(" active", "");
+        }
+        slides[slideIndex-1].style.display = "block";
+        dots[slideIndex-1].className += " active";
+        }
+        </script>
+        """
+
+        # Return the full carousel with styling and JavaScript
+        return mark_safe(carousel_css + carousel_html + carousel_js)
+
+    # Mark description for Django admin use
+    slide_preview_carousel.short_description = 'Slide Preview Carousel'
+
 
     def scene_count(self, obj):
         """Determines how many scenes are 
