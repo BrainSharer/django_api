@@ -44,6 +44,9 @@ class HistologyAdmin(AtlasAdminModel, ExportCsvMixin):
     ordering = ['prep_id']
     exclude = ('created',)
 
+    class Media:
+        js = ('admin/js/histology.js',)  # relative path in static folder
+
 @admin.register(Injection)
 class InjectionAdmin(AtlasAdminModel, ExportCsvMixin):
     """A class to describe the injections (if any) for each animal. 

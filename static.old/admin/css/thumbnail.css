@@ -1,0 +1,42 @@
+.profile-pic-wrapper {
+  border: solid 2px #79AEC8;
+  width: 90px;
+  height: 60px;
+}
+
+.profile-pic-wrapper img {
+  width: 90px;
+  height: 60px;
+}
+
+.profile-pic-wrapper:hover img {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 400px;
+  height: auto;
+  object-fit: cover;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  border: solid 2px #79AEC8;
+}
+
+
+.hover_img a { position:relative; }
+.hover_img a span { position:absolute; display:none; z-index:99; }
+.hover_img a:hover span { 
+  display: block;
+  position: fixed;
+  top:50%;
+  left:50%;
+  transform: translate(-50%, -50%);
+  width: 400px;
+  height: auto;
+  object-fit: cover;
+  align-items: center;
+  justify-content: center;
+  border: solid 2px #79AEC8;
+ z-index: 1;
+}
