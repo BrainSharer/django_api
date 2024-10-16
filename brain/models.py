@@ -76,6 +76,13 @@ class Animal(AtlasModel):
 class Histology(AtlasModel):
     """This class provides the metadata associated with the histology of the animal
     """
+    class SideSectionedFirstChoices(models.TextChoices):
+            LEFT = 'ASC', _('Left')
+            RIGHT = 'DESC', _('Right')
+            DORSAL = 'Dorsal', _('Dorsal')
+            VENTRAL = 'Ventral', _('Ventral')
+            ANTERIOR = 'Anterior', _('Anterior')
+            POSTERIOR = 'Posterior', _('Posterior')
     
     id = models.AutoField(primary_key=True)
     prep = models.ForeignKey(Animal, models.CASCADE, db_column='FK_prep_id')
@@ -93,14 +100,7 @@ class Histology(AtlasModel):
     date_sectioned = models.DateField(blank=True, null=True)
     orientation = EnumField(choices=['coronal','horizontal','sagittal','oblique'], blank=True, null=True)
     #side_sectioned_first = EnumField(choices=[('ASC', 'Left'), ('DESC','Right')], blank=False, null=False, default = 'ASC')
-    side_sectioned_first = EnumField(choices=[
-        ('Left', 'Left'),
-        ('Right', 'Right'),
-        ('Dorsal', 'Dorsal'),
-        ('Ventral', 'Ventral'),
-        ('Anterior', 'Anterior'),
-        ('Posterior', 'Posterior')
-    ], blank=False, null=False)
+    side_sectioned_first = models.CharField(max_length=20, choices=SideSectionedFirstChoices,  blank=False, null=False, default=SideSectionedFirstChoices.LEFT)
     scene_order = EnumField(choices=[('ASC', 'Ascending'), ('DESC','Desending')], blank=False, null=False, default = 'ASC')
     sectioning_method = EnumField(choices=['cryoJane','cryostat','vibratome','optical','sliding microtiome'], blank=True, null=True)
     section_thickness = models.PositiveIntegerField(verbose_name="Z Resolution (µm)", default=20)
@@ -193,6 +193,11 @@ class ScanRun(AtlasModel):
             FLIP = 'flip', _('switch axis horizontally (flip)')
             FLOP = 'flop', _('switch axis vertically (flop)')
             NONE = 'none', _('none')
+
+    class MaskChoices(models.IntegerChoices):
+            NO_MASK = 0, _('No mask')
+            FULL_MASK = 1, _('Full mask')
+            BOTTOM_MASK = 2, _('Bottom mask')
     
     id = models.AutoField(primary_key=True)
     prep = models.OneToOneField(Animal, models.CASCADE, db_column='FK_prep_id')
@@ -219,8 +224,7 @@ class ScanRun(AtlasModel):
                                    help_text='0=0°, 1=90°, 2=180°, 3=270°')
     flip = models.CharField(max_length=4, choices=FlipFlopChoices, default=FlipFlopChoices.NONE,
                      help_text='Flip axis horizontally: top to bottom or switch axis vertically: left to right')
-    MASK_CHOICES = ((0, 'No mask'), (1, 'Full mask'), (2, 'Bottom mask'))
-    mask = models.IntegerField(choices=MASK_CHOICES, default=1, verbose_name='Mask image')
+    mask = models.IntegerField(choices=MaskChoices.choices, default=MaskChoices.FULL_MASK, verbose_name='Mask image')
     comments = models.TextField(max_length=2001, blank=True, null=True)
 
     def __str__(self):
