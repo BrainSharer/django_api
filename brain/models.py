@@ -10,7 +10,7 @@ from django_mysql.models import EnumField
 from django.utils.safestring import mark_safe
 from django.core.validators import MaxValueValidator, MinValueValidator
 import os
-from django.utils.html import escape
+from django.utils.translation import gettext_lazy as _
 
 from authentication.models import Lab
 
@@ -189,6 +189,10 @@ class ScanRun(AtlasModel):
     have just one scan run, but they can have more than one. Information in 
     this table is used extensively throughout the pre-processing 
     """
+    class FlipFlopChoices(models.TextChoices):
+            FLIP = 'flip', _('switch axis horizontally (flip)')
+            FLOP = 'flop', _('switch axis vertically (flop)')
+            NONE = 'none', _('none')
     
     id = models.AutoField(primary_key=True)
     prep = models.OneToOneField(Animal, models.CASCADE, db_column='FK_prep_id')
@@ -213,8 +217,8 @@ class ScanRun(AtlasModel):
     pi = str('Π').lower()
     rotation = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(3)], default=0, 
                                    help_text='0=0°, 1=90°, 2=180°, 3=270°')
-    flip = EnumField(choices=['none','flip','flop'], blank=False, null=False, default='none', 
-                     help_text='Flip switches top to bottom and flop switches left to right')
+    flip = models.CharField(max_length=4, choices=FlipFlopChoices, default=FlipFlopChoices.NONE,
+                     help_text='Flip axis horizontally: top to bottom or switch axis vertically: left to right')
     MASK_CHOICES = ((0, 'No mask'), (1, 'Full mask'), (2, 'Bottom mask'))
     mask = models.IntegerField(choices=MASK_CHOICES, default=1, verbose_name='Mask image')
     comments = models.TextField(max_length=2001, blank=True, null=True)
