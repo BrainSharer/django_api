@@ -144,7 +144,6 @@ class TifInline(admin.TabularInline):
     can_delete = False
     formset = TifInlineFormset
     template = 'admin/brain/tabular_tifs.html'
-
     
     def section_number(self, obj) -> str:
         animal = obj.slide.scan_run.prep_id
@@ -355,7 +354,10 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         full_res_png = png.replace('.png', '_full.png')
         full_res_url = f"https://imageserv.dk.ucsd.edu/data/{obj.scan_run.prep}/slides_preview/{full_res_png}"
         full_checksum = obj.checksum
-        truncated_checksum = full_checksum[-6:]
+        if full_checksum is None:
+            truncated_checksum = 'None'
+        else:
+            truncated_checksum = full_checksum[-6:]
 
         toggle_script = f"""
             <script>

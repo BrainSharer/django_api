@@ -301,6 +301,7 @@ class SlideCziToTif(AtlasModel):
     
     id = models.AutoField(primary_key=True)
     slide = models.ForeignKey(Slide, models.CASCADE, db_column='FK_slide_id')
+    czifile = models.CharField(max_length=200)
     file_name = models.CharField(max_length=200, null=False)
     scene_number = models.IntegerField(blank=False, null=False, default=1,
                                                     verbose_name='Scene Ordering',
