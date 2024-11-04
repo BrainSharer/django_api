@@ -322,9 +322,9 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
 
     def previous_preview_tag(self, obj):
         png = self.previous_slide.file_name.replace('czi', 'png')
-        thumbnail = f"https://imageserv.dk.ucsd.edu/data/{self.previous_slide.scan_run.prep}/slides_preview/{png}"
-        full_res_png = png.replace('.png', '_full.png')
-        full_res_url = f"https://imageserv.dk.ucsd.edu/data/{self.previous_slide.scan_run.prep}/slides_preview/{full_res_png}"
+        full_res_url = thumbnail = f"https://imageserv.dk.ucsd.edu/data/{self.previous_slide.scan_run.prep}/slides_preview/{png}"
+        # full_res_png = png.replace('.png', '_full.png')
+        # full_res_url = f"https://imageserv.dk.ucsd.edu/data/{self.previous_slide.scan_run.prep}/slides_preview/{full_res_png}"
         full_checksum = self.previous_slide.checksum
         truncated_checksum = full_checksum[-6:]
 
