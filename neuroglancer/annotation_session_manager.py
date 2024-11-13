@@ -281,6 +281,10 @@ class AnnotationSessionManager():
         Returns:
             str: The name of the created folder.
         """
+        if (isinstance(label, AnnotationLabel)) and label is not None:
+            label = label.label
+
+        label = str(label).replace(' ', '_')
         folder_name = f'{animal}_{label}'
         path = '/var/www/brainsharer/structures'
         output_dir = os.path.join(path, folder_name)

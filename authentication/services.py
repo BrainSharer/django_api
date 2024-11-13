@@ -8,7 +8,7 @@ from django.http import HttpRequest, HttpResponse
 from django.core.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 from authentication.utils import get_now
-from authentication.models import User
+from authentication.models import Lab, User
 from django.contrib.auth import login
 
 GITHUB_ACCESS_TOKEN_OBTAIN_URL = 'https://github.com/login/oauth/access_token'
@@ -104,7 +104,7 @@ def refresh_access_cookies(response: HttpResponse, request: HttpRequest) -> None
     set_cookie_with_token(response, 'username', user.username)
     set_cookie_with_token(response, 'sessionid', sessionid)
     #set_cookie_with_token(response, 'sessionid', user.get_session_auth_hash)
-    if user.lab is not None:
+    if (isinstance(User, user)) and user.lab is not None and (isinstance(user.lab, Lab)) and user.lab.lab_name is not None:
         set_cookie_with_token(response, 'lab', user.lab.lab_name)
     else:
         set_cookie_with_token(response, 'lab', "NA")
