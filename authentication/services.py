@@ -104,7 +104,7 @@ def refresh_access_cookies(response: HttpResponse, request: HttpRequest) -> None
     set_cookie_with_token(response, 'username', user.username)
     set_cookie_with_token(response, 'sessionid', sessionid)
     #set_cookie_with_token(response, 'sessionid', user.get_session_auth_hash)
-    if (isinstance(User, user)) and user.lab is not None and (isinstance(user.lab, Lab)) and user.lab.lab_name is not None:
+    if (isinstance(User, user)) and user.lab is not None and user.lab.lab_name is not None:
         set_cookie_with_token(response, 'lab', user.lab.lab_name)
     else:
         set_cookie_with_token(response, 'lab', "NA")
