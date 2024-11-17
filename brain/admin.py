@@ -325,7 +325,10 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         # full_res_png = png.replace('.png', '_full.png')
         # full_res_url = f"https://imageserv.dk.ucsd.edu/data/{self.previous_slide.scan_run.prep}/slides_preview/{full_res_png}"
         full_checksum = self.previous_slide.checksum
-        truncated_checksum = full_checksum[-6:]
+        if full_checksum is None:
+            truncated_checksum = 'None'
+        else:
+            truncated_checksum = full_checksum[-6:]
 
         toggle_script = f"""
             <script>
@@ -386,7 +389,10 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         full_res_png = png.replace('.png', '_full.png')
         full_res_url = f"https://imageserv.dk.ucsd.edu/data/{self.following_slide.scan_run.prep}/slides_preview/{full_res_png}"
         full_checksum = self.following_slide.checksum
-        truncated_checksum = full_checksum[-6:]
+        if full_checksum is None:
+            truncated_checksum = 'None'
+        else:
+            truncated_checksum = full_checksum[-6:]
 
         toggle_script = f"""
             <script>
