@@ -5,6 +5,7 @@ import re
 import json
 import pandas as pd
 from django.template.defaultfilters import truncatechars
+from authentication.models import Lab
 from brain.models import AtlasModel, Animal
 from django_mysql.models import EnumField
 
@@ -24,10 +25,10 @@ class NeuroglancerState(models.Model):
 
     id = models.BigAutoField(primary_key=True)
     neuroglancer_state = models.JSONField(verbose_name="Neuroglancer State")
+    lab = models.ForeignKey(Lab, models.CASCADE, null=True, db_column="FK_lab_id", verbose_name='Lab')
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, null=False,
                               blank=False, db_column="FK_user_id",
                                verbose_name="User")
-    #####TODO lab = models.ForeignKey(Lab, models.CASCADE, null=True, db_column="FK_user_id", verbose_name='Lab')
     public = models.BooleanField(default = False, db_column='active')
     readonly = models.BooleanField(default = False, verbose_name='Read only')
     created = models.DateTimeField(auto_now_add=True)
@@ -75,6 +76,7 @@ class NeuroglancerState(models.Model):
 
         return animal
 
+    """
     @property
     def lab(self):
         '''
@@ -85,7 +87,8 @@ class NeuroglancerState(models.Model):
         if self.owner is not None and self.owner.lab is not None:
             lab = self.owner.lab
         return lab
-
+    """
+    
     @property
     def point_frame(self):
         df = None
@@ -114,7 +117,6 @@ class NeuroglancerState(models.Model):
                 result.append(rows[i])
 
         return result
-
 
 
     @property
@@ -241,7 +243,7 @@ class NeuroglancerState(models.Model):
         return layer_list
 
     class Meta:
-        managed = True
+        managed = False
         verbose_name = "Neuroglancer state"
         verbose_name_plural = "Neuroglancer states"
         ordering = ('comments', 'created')

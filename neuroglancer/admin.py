@@ -67,8 +67,8 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
         rows = NeuroglancerState.objects.all()
         rows = rows.defer('neuroglancer_state')
         if not request.user.is_superuser:
-            labs = [p.id for p in request.user.labs.all()]
-            rows = rows.filter(owner__lab__in=labs)
+            labs = [p for p in request.user.labs.all()]
+            rows = rows.filter(lab__in=labs)
         
         return rows
 

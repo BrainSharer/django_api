@@ -4,7 +4,7 @@
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
 from neuroglancer.models import AnnotationLabel, AnnotationSession, NeuroglancerState
-from authentication.models import User
+from authentication.models import Lab, User
 
 
 
@@ -105,6 +105,15 @@ class NeuroglancerStateSerializer(serializers.ModelSerializer):
             obj.owner = owner
         except User.DoesNotExist:
             raise APIException('Owner was not in validated data')
+        
+
+        if owner.lab is None:
+            lab = Lab.objects.get(lab_name='CSHL')
+        else:
+            lab = owner.lab
+
+        obj.lab = lab
+
         try:
             obj.save()
         except APIException:

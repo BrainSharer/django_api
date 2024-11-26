@@ -113,6 +113,24 @@ class TestAnnotations(TestSetUp):
         response = self.client.get("/annotations/labels")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_get_labs(self):
+        """Test the API that returns labels
+        """
+        response = self.client.get("/labs")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_get_neuroglancers(self):
+        """Test the API that returns labels
+        """
+        response = self.client.get("/neuroglancers")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_search_neuroglancers(self):
+        """Test the API that returns a new layer
+        """
+        response = self.client.get(f"/neuroglancers?limit=10&offset=0&lab=1")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
     def test_get_label_empty(self):
         """Test the API that returns labels, like above
         """

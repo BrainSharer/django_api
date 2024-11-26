@@ -221,7 +221,7 @@ class NeuroglancerPublicViewSet(viewsets.ModelViewSet):
         if description is not None:
             queryset = queryset.filter(description__icontains=description)
         if lab is not None and int(lab) > 0:
-            queryset = queryset.filter(owner__lab=lab)
+            queryset = queryset.filter(lab=lab)
 
         return queryset
 
