@@ -18,9 +18,10 @@ django.setup()
 from neuroglancer.models import NeuroglancerState, AnnotationSession
 
 class Parsedata:
-    def __init__(self, id=0, layer_name=None, debug=False):
+    def __init__(self, id=0, layer_name=None, layer_type=None, debug=False):
         self.id = id
         self.layer_name = layer_name
+        self.layer_type = layer_type
         self.debug = debug
 
     def parse_neuroglancer_state(self):
@@ -45,9 +46,12 @@ class Parsedata:
                     layer_ids_to_update.append(i)
 
             for layer_id in layer_ids_to_update:
-                self.create_new_annotation_data(state.id, layer_id, self.debug)
+                if self.layer_type == "cloud":
+                    self.fix_and_update_cloud_annotation_data(state.id, layer_id, self.debug)
+                if self.layer_type == "volume":
+                    self.fix_and_update_volume_annotation_data(state.id, layer_id, self.debug)
 
-    def parse_annotations(self):
+    def show_annotations(self):
         if self.id > 0:
             try:
                 state = NeuroglancerState.objects.get(pk=self.id)
@@ -57,19 +61,52 @@ class Parsedata:
         else:
             print('No ID was provided, returning ...')
             return
-        layer_ids_to_update = []
-        print(state.id, state.comments, end="\t")
+        
+        print(state.id, state.comments)
         existing_state = state.neuroglancer_state # big JSON
         layers = existing_state['layers'] # list of dictionaries
         for i, layer in enumerate(layers): # layers is a list
             if 'annotations' in layer: # We will be updating this layer in the state
-                self.show_annotations(layer)
+                if layer_type == 'cloud':
+                    self.show_v1_cloud_annotations(layer)
+                    self.show_v2_cloud_annotations(layer)
+                elif layer_type == 'volume':
+                    self.show_annotation_json(layer)
+                else:
+                    print('Select either layer_type=cloud or volume')
 
     @staticmethod
-    def show_annotations(layer):
+    def show_annotation_json(layer):
         name = layer['name']
         annotations = layer['annotations']
         print(f'Layer={name}')
+        # type for v1 is either line or polygon
+        for annotation in annotations:
+            print(annotation)
+            print()
+
+
+    @staticmethod
+    def show_v1_cloud_annotations(layer):
+        name = layer['name']
+        annotations = layer['annotations']
+        print(f'Layer={name}')
+        keys = set()
+        for annotation in annotations:
+            #print(annotation.keys())
+            keys.add(tuple(annotation.keys()))
+            points = [ row['point'] for row in annotations if 'point' in row]
+            pointsAB = [ row['pointA'] for row in annotations if 'pointA' in row]
+        print(keys)
+        print(f'with # cloud points={len(points)}')
+        print(f'with # annotation points={len(pointsAB)}')
+
+
+    @staticmethod
+    def show_v2_cloud_annotations(layer):
+        name = layer['name']
+        annotations = layer['annotations']
+        print(f'Layer={name}', end="\t")
         total_points = 0
         cloud_ids = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row
                                 and 'type' in row
@@ -88,7 +125,13 @@ class Parsedata:
                 descriptions = descriptions[0].replace('\n', ', ')
             print('Cloud description'.ljust(20), str(descriptions).ljust(40), 'points', len(points))
             total_points += len(points)
-        ##### Finished with cloud points
+        print(f'with # cloud points={total_points}')
+ 
+    @staticmethod
+    def show_volume_annotations(layer):
+        name = layer['name']
+        annotations = layer['annotations']
+        total_points = 0
         ##### This is for the volumes/polygons
         ##### For each volume, get all the polygons and then for each polygon, get all the points
         volume_ids = [row['id'] for row in annotations if "id" in row and 'type' in row and row['type'] == 'volume']
@@ -120,19 +163,19 @@ class Parsedata:
                     and row["parentAnnotationId"] == polygon_id
                 ]
                 number_of_points += len(points)
-                #for i, point in enumerate(points):
-                #    if i > 0 and points[i]['pointA'] == points[i-1]['pointB'] and point['parentAnnotationId'] == 'f2106f758f855d56cf0faa5a8d99b1305898f472':
-                #        print(i, points[i]['pointA'], points[i-1]['pointB'])
-                #        print(point)
             total_points += number_of_points
-            
-            print('Volume descriptions'.ljust(20), str(descriptions).ljust(40), 'polygons', 
-                  str(len(polygon_ids)).rjust(5),  
-                  'points', str(number_of_points).rjust(5))
-        print(f'Total points={total_points}')
+
+            print(f'Layer={name}', end="\t")            
+            print(f'\nVolume description={str(descriptions)}')
+            print(f'# polygons {len(polygon_ids)}')  
+            print(f'# points {number_of_points}')
+            for point in points:
+                print(point)
+        
+
 
     @staticmethod
-    def create_new_annotation_data(neuroglancer_state_id, layer_id, debug):
+    def fix_and_update_cloud_annotation_data(neuroglancer_state_id, layer_id, debug):
         print("Creating new annotation data for layer", layer_id)
         default_props = ["#ffff00", 1, 1, 5, 3, 1]
 
@@ -229,6 +272,118 @@ class Parsedata:
             state.save()
             print("Updated", state.comments, existing_name, len(reformatted_annotations))
 
+
+    @staticmethod
+    def fix_and_update_volume_annotation_data(neuroglancer_state_id, layer_id, debug):
+        default_props = ["#ffff00", 1, 1, 5, 3, 1]
+
+        state = NeuroglancerState.objects.get(pk=neuroglancer_state_id)
+        existing_state = state.neuroglancer_state
+        existing_annotations = existing_state["layers"][layer_id]["annotations"]
+
+        existing_name = existing_state["layers"][layer_id]["name"]
+        if len(existing_annotations) == 0:
+            print("No annotations found for", state.comments, existing_name)
+            return
+        
+        existing_state["layers"][layer_id]["annotations"] = []
+        # descriptions are the labels
+
+        volume_id = f"{Parsedata.random_string()}"
+        points = []                
+
+        polygon_ids = [row['id'] for row in existing_annotations if "type" in row and row["type"] == "polygon"]
+        if len(polygon_ids) == 0:
+            return
+        else:
+            print(f"Found {len(polygon_ids)} polygons for {state.comments} layer name={existing_name}")
+
+        if "props" in existing_annotations and "type" in existing_annotations and existing_annotations["type"] == "polygon":
+            color = existing_annotations["props"][0]
+            default_props = [f"{color}", 1, 1, 5, 3, 1]
+        else:
+            props = default_props
+
+        descriptions = list(set(row["description"] for row in existing_annotations if "description" in row))
+        if len(descriptions) > 0:
+            description = descriptions[0]
+        else:
+            description = ""
+
+        polygons = [] 
+        for polygon_id in polygon_ids:
+            
+            polygon = {}
+            polygon['type'] = 'polygon'
+            polygon['id'] = f"{polygon_id}"
+            polygon['parentAnnotationId'] = f"{volume_id}"
+            polygon['props'] = props
+
+            lines_source = [row for row in existing_annotations if "parentAnnotationId" in row and row["parentAnnotationId"] == polygon_id]
+            lines = []
+            line_ids = []
+            for line_source in lines_source:
+                pointA = line_source["pointA"]
+                pointB = line_source["pointB"]
+                points.append(pointA)
+                
+                if "props" in line_source and "type" in line_source and line_source["type"] == "line":
+                    color = line_source["props"][0]
+                    props = [f"{color}", 1, 1, 5, 3, 1]
+                else:
+                    props = default_props
+
+                line = {
+                    "pointA": pointA,
+                    "pointB": pointB, 
+                    "type": "line",
+                    "id": f"{Parsedata.random_string()}",
+                    "parentAnnotationId": f"{polygon_id}",
+                    "props": props
+                }
+                line_ids.append(line["id"])
+                lines.append(line)
+            polygon['source'] = lines[0]['pointA']
+            polygon["centroid"] = np.mean([line['pointA'] for line in lines], axis=0).tolist()
+            polygon['childAnnotationIds'] = [line["id"] for line in lines]
+            polygon['type'] = 'polygon'
+            polygon['id'] = f"{polygon_id}"
+            polygon['parentAnnotationId'] = f"{volume_id}"
+            polygon['props'] = props
+
+            polygons.append(polygon)
+
+
+        volume = {}
+        volume["source"] = points[0]
+        volume["centroid"] = np.mean(points, axis=0).tolist()
+        volume["childAnnotationIds"] = polygon_ids # random ids length of points
+        volume["childrenVisible"] = True
+        volume["type"] = "volume"
+        volume["id"] = f"{volume_id}"
+        volume["props"] = default_props
+        volume["description"] = f"{description}"
+
+        reformatted_annotations = []
+        reformatted_annotations.append(volume)
+        reformatted_annotations.extend(polygons)
+        reformatted_annotations.extend(lines)
+
+        existing_state["layers"][layer_id]["annotations"] += reformatted_annotations
+        if debug:
+            print(polygons)
+
+        state.updated = datetime.datetime.now(datetime.timezone.utc)
+        existing_state["layers"][layer_id]["tool"] = "annotateVolume"
+        existing_state["layers"][layer_id]["annotationProperties"] = create_json_header()
+
+        if debug:
+            print('Finished debugging', state.comments, existing_name, len(reformatted_annotations))
+        else:
+            state.neuroglancer_state = existing_state
+            state.save()
+            print("Updated", state.comments, existing_name, len(reformatted_annotations))
+
     
     @staticmethod
     def random_string():
@@ -316,21 +471,24 @@ if __name__ == '__main__':
     parser.add_argument('--id', help='Enter ID', required=False, default=0, type=int)
     parser.add_argument('--task', help='Enter task', required=True, type=str)
     parser.add_argument('--layer_name', help='Enter layer name', required=False, type=str)
+    parser.add_argument('--layer_type', help='Enter layer type', required=False, type=str)
+    
     parser.add_argument('--debug', required=False, default='false', type=str)
 
     args = parser.parse_args()
 
     task = str(args.task).strip().lower()
     layer_name = str(args.layer_name).strip()
+    layer_type = str(args.layer_type).strip()
     debug = bool({'true': True, 'false': False}[args.debug.lower()])    
     id = args.id
 
-    pipeline = Parsedata(id=id, layer_name=layer_name, debug=debug)
+    pipeline = Parsedata(id=id, layer_name=layer_name, layer_type=layer_type, debug=debug)
 
     function_mapping = {
             "session": pipeline.parse_annotation,
-            "state": pipeline.parse_neuroglancer_state,
-            "show": pipeline.parse_annotations,
+            "fix": pipeline.parse_neuroglancer_state,
+            "show": pipeline.show_annotations,
         }
 
     if task in function_mapping:
