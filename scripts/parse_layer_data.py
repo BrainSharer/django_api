@@ -24,7 +24,7 @@ class Parsedata:
         self.layer_type = layer_type
         self.debug = debug
 
-    def parse_neuroglancer_state(self):
+    def fix_neuroglancer_state(self):
         if self.id > 0:
             state = NeuroglancerState.objects.get(pk=self.id)
             states = [state]
@@ -81,9 +81,10 @@ class Parsedata:
         annotations = layer['annotations']
         print(f'Layer={name}')
         # type for v1 is either line or polygon
-        for annotation in annotations:
-            print(annotation)
-            print()
+        if name == 'annotation':
+            for annotation in annotations:
+                print(f'Annotation type={annotation["type"]}')
+                
 
 
     @staticmethod
@@ -311,16 +312,13 @@ class Parsedata:
             description = ""
 
         polygons = [] 
-        for polygon_id in polygon_ids:
+        lines = []
+        for i, polygon_id in enumerate(polygon_ids):
+            print(i, polygon_id)
             
             polygon = {}
-            polygon['type'] = 'polygon'
-            polygon['id'] = f"{polygon_id}"
-            polygon['parentAnnotationId'] = f"{volume_id}"
-            polygon['props'] = props
 
             lines_source = [row for row in existing_annotations if "parentAnnotationId" in row and row["parentAnnotationId"] == polygon_id]
-            lines = []
             line_ids = []
             for line_source in lines_source:
                 pointA = line_source["pointA"]
@@ -345,7 +343,7 @@ class Parsedata:
                 lines.append(line)
             polygon['source'] = lines[0]['pointA']
             polygon["centroid"] = np.mean([line['pointA'] for line in lines], axis=0).tolist()
-            polygon['childAnnotationIds'] = [line["id"] for line in lines]
+            polygon['childAnnotationIds'] = line_ids
             polygon['type'] = 'polygon'
             polygon['id'] = f"{polygon_id}"
             polygon['parentAnnotationId'] = f"{volume_id}"
@@ -487,7 +485,7 @@ if __name__ == '__main__':
 
     function_mapping = {
             "session": pipeline.parse_annotation,
-            "fix": pipeline.parse_neuroglancer_state,
+            "fix": pipeline.fix_neuroglancer_state,
             "show": pipeline.show_annotations,
         }
 
