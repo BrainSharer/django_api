@@ -35,7 +35,6 @@ def get_labels(request):
 def search_label(request, search_string=None):
     data = []
     if search_string:
-        print(f'search_string: {search_string}')
         labels = AnnotationLabel.objects\
             .filter(label__icontains=search_string).order_by('label')
         for row in labels:
