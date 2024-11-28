@@ -1,4 +1,5 @@
 from collections import defaultdict
+import shutil
 import numpy as np
 import os
 from cloudvolume import CloudVolume
@@ -271,6 +272,8 @@ class AnnotationSessionManager():
     def create_segmentation_folder(self, volume, animal, label, offset):
         """
         Creates a segmentation folder for a given volume, animal, label, and offset.
+        If the folder already exists, it will delete it and recreate it. We might
+        want to change this to just return the existing folder_name
 
         Args:
             volume (str): The volume to be used for segmentation.
@@ -288,6 +291,8 @@ class AnnotationSessionManager():
         folder_name = f'{animal}_{label}'
         path = '/var/www/brainsharer/structures'
         output_dir = os.path.join(path, folder_name)
+        if os.path.exists(folder_name):
+            shutil.rmtree(folder_name)
         self.resolution = self.resolution * 1000 * self.downsample_factor  # neuroglancer wants it in nm
         self.zresolution = self.zresolution * 1000
         scales = [int(self.resolution), int(self.resolution), int(self.zresolution)]
