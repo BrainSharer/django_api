@@ -146,11 +146,26 @@ class TifInline(admin.TabularInline):
     template = 'admin/brain/tabular_tifs.html'
     
     def section_number(self, obj) -> str:
+        """
+        Returns the section number of a given object as a zero-padded string with a ".tif" extension.
+        Args:
+            obj: The object for which the section number is to be determined. It is expected to have 
+                 a related slide, scan_run, and prep_id attributes.
+        Returns:
+            str: The section number formatted as a zero-padded string with a ".tif" extension.
+        The function performs the following steps:
+        1. Retrieves the animal identifier from the object's related slide's scan_run's prep_id.
+        2. Fetches the corresponding Histology object using the animal identifier.
+        3. Determines the order of sections based on the 'side_sectioned_first' attribute of the Histology object.
+        4. Filters and orders the Section objects based on the determined order.
+        5. Finds the index of the given object's ID in the ordered list of Section IDs.
+        6. Returns the index as a zero-padded string with a ".tif" extension.
+        """
         animal = obj.slide.scan_run.prep_id
         histology = Histology.objects.get(prep_id=animal)
         orderby = histology.side_sectioned_first
 
-        if orderby == 'DESC' or orderby == 'Left':
+        if orderby == 'Right':
             sections =  Section.objects.filter(prep_id__exact=animal).filter(channel=1)\
                 .order_by('-slide_physical_id', '-scene_number')
         else:
