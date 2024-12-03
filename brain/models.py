@@ -77,8 +77,8 @@ class Histology(AtlasModel):
     """This class provides the metadata associated with the histology of the animal
     """
     class SideSectionedFirstChoices(models.TextChoices):
-            LEFT = 'ASC', _('Left')
-            RIGHT = 'DESC', _('Right')
+            LEFT = 'Left', _('Left')
+            RIGHT = 'Right', _('Right')
             DORSAL = 'Dorsal', _('Dorsal')
             VENTRAL = 'Ventral', _('Ventral')
             ANTERIOR = 'Anterior', _('Anterior')

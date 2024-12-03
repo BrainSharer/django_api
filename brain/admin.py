@@ -150,7 +150,7 @@ class TifInline(admin.TabularInline):
         histology = Histology.objects.get(prep_id=animal)
         orderby = histology.side_sectioned_first
 
-        if orderby == 'DESC':
+        if orderby == 'DESC' or orderby == 'Left':
             sections =  Section.objects.filter(prep_id__exact=animal).filter(channel=1)\
                 .order_by('-slide_physical_id', '-scene_number')
         else:
