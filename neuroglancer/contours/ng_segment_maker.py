@@ -1,7 +1,6 @@
 """
-William, this is the last script for creating the atlas
 
-This will create a precomputed volume of the Active Brain Atlas which
+This will create a precomputed volume 
 you can import into neuroglancer
 """
 import os

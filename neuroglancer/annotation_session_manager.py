@@ -4,7 +4,8 @@ import numpy as np
 import os
 from cloudvolume import CloudVolume
 import cv2
-from scipy.interpolate import splev, splprep
+import scipy.interpolate as si
+from skimage.filters import gaussian
 from django.db.models import Count
 
 from brain.models import ScanRun
@@ -183,6 +184,7 @@ class AnnotationSessionManager():
                 polygons[section].append(xy)
             polygons[z0].append((x0, y0))
 
+        len1 = len(polygons)
         _min = min(polygons.keys())
         _max = max(polygons.keys())
         points = []
@@ -191,7 +193,13 @@ class AnnotationSessionManager():
                 points.append(polygons[expanded_section])
             else:
                 polygons[expanded_section] = polygons[expanded_section - 1]
-        
+        len2 = len(polygons)
+        print(f'len1={len1} len2={len2}')
+        for polygon in polygons:
+            points = polygons[polygon]
+            if len(points) > 2:
+                points = self.bspliner(points, len(points)*10, degree=3)
+                polygons[polygon] = points
         return polygons
 
 
@@ -234,6 +242,9 @@ class AnnotationSessionManager():
             volume.append(volume_slice)
         volume = np.array(volume)
         volume = np.swapaxes(volume, 0, 2)
+        ##### note, smoothing with the guassin filter is not working
+        ##### neuroglancer wants int and guassin returns float
+        #volume = gaussian(volume, 1)
         return volume.astype(np.uint16)
 
 
@@ -364,22 +375,30 @@ class AnnotationSessionManager():
         color = 1
         return allen_structures.get(str(label), color)
 
-def interpolate2d(points, new_len):
-    """Interpolates a list of tuples to the specified length. The points param
-    must be a list of tuples in 2d
     
-    :param points: list of floats
-    :param new_len: integer you want to interpolate to. This will be the new length of the array
-    There can't be any consecutive identical points or an error will be thrown
-    unique_rows = np.unique(original_array, axis=0)
-    """
+    @staticmethod
+    def bspliner(cv, n=100, degree=3):
+        """
+        Generate a B-spline curve from a set of polygon points.
 
-    pu = np.array(points, dtype=np.float64)
-    indexes = np.unique(pu, axis=0, return_index=True)[1]
-    points = np.array([points[index] for index in sorted(indexes)])
+        Parameters:
+        cv (array-like): Array of control vertices.
+        n (int, optional): Number of points to generate along the B-spline curve. Default is 100.
+        degree (int, optional): Degree of the B-spline. Default is 3.
 
-    tck, u = splprep(points.T, u=None, s=3, per=1)
-    u_new = np.linspace(u.min(), u.max(), new_len)
-    x_array, y_array = splev(u_new, tck, der=0)
-    arr_2d = np.concatenate([x_array[:, None], y_array[:, None]], axis=1)
-    return arr_2d
+        Returns:
+        numpy.ndarray: Array of points representing the B-spline curve.
+        """
+
+        cv = np.asarray(cv)
+        count = len(cv)
+        degree = np.clip(degree,1,count-1)
+
+        # Calculate knot vector
+        kv = np.concatenate(([0]*degree, np.arange(count-degree+1), [count-degree]*degree))
+
+        # Calculate query range
+        u = np.linspace(False,(count-degree),n)
+
+        # Calculate result
+        return np.array(si.splev(u, (kv,cv.T,degree))).T    

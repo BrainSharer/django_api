@@ -14,13 +14,11 @@ from django.urls import reverse, path
 from django.template.response import TemplateResponse
 from plotly.offline import plot
 import plotly.express as px
-from requests import Response
 
 from brainsharer.admin_extensions import AtlasAdminModel, ExportCsvMixin
 from neuroglancer.models import AnnotationLabel, AnnotationSession, \
     NeuroglancerState, Points, AnnotationData
 from neuroglancer.dash_view import dash_scatter_view
-from neuroglancer.url_filter import UrlFilter
 
 
 
@@ -55,11 +53,11 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.CharField: {'widget': TextInput(attrs={'size': '80'})},
     }
-    list_display = ('id', 'animal', 'open_neuroglancer', 'public_description', 'public', 'readonly', 'owner', 'lab', 'created', 'updated')
+    list_display = ('id', 'animal', 'open_neuroglancer', 'public_description', 'public', 'readonly', 'active', 'owner', 'lab', 'created', 'updated')
     list_per_page = 25
     ordering = ['-readonly', '-updated']
     readonly_fields = ['user_date']
-    list_filter = ['updated', 'created', 'readonly', UrlFilter, 'public']
+    list_filter = ['updated', 'created', 'readonly', 'active', 'public']
     search_fields = ['id', 'comments', 'description']
 
     def get_queryset(self, request):
