@@ -55,7 +55,7 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
     }
     list_display = ('id', 'animal', 'open_neuroglancer', 'public_description', 'public', 'readonly', 'active', 'owner', 'lab', 'created', 'updated')
     list_per_page = 25
-    ordering = ['-readonly', '-updated']
+    ordering = ['-active', '-readonly', '-updated']
     readonly_fields = ['user_date']
     list_filter = ['updated', 'created', 'readonly', 'active', 'public']
     search_fields = ['id', 'comments', 'description']
@@ -81,10 +81,11 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
     
     def public_description(self, obj):
         """This method displays HTML"""
-        if obj.description is None:
+        DISPLAY_LENGTH = 20
+        if obj.description is None or len(obj.description) < DISPLAY_LENGTH:
             return 'NA'
         else:
-            return format_html(obj.description)
+            return format_html(obj.description[0:DISPLAY_LENGTH] + '...')
 
     def open_multiuser(self, obj):
         """This method creates an HTML link that allows the user to access Neuroglancer 
