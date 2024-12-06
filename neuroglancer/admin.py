@@ -85,7 +85,7 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
         if obj.description is None or len(obj.description) < DISPLAY_LENGTH:
             return 'NA'
         else:
-            return format_html(obj.description[0:DISPLAY_LENGTH] + '...')
+            return obj.description[0:DISPLAY_LENGTH] + '...'
 
     def open_multiuser(self, obj):
         """This method creates an HTML link that allows the user to access Neuroglancer 
