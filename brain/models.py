@@ -197,6 +197,7 @@ class ScanRun(AtlasModel):
             NO_MASK = 0, _('No mask')
             FULL_MASK = 1, _('Full mask')
             BOTTOM_MASK = 2, _('Bottom mask')
+            FULL_MASK_NO_CROP = 3, _('Full mask, no crop')
     
     id = models.AutoField(primary_key=True)
     prep = models.OneToOneField(Animal, models.CASCADE, db_column='FK_prep_id')
