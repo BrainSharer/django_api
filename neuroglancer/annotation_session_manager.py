@@ -241,10 +241,10 @@ class AnnotationSessionManager():
             volume_slice = cv2.fillPoly(volume_slice, pts=[points], color=self.color)
             volume.append(volume_slice)
         volume = np.array(volume)
+        print(f'volume shape={volume.shape}')
         volume = np.swapaxes(volume, 0, 2)
-        ##### note, smoothing with the guassin filter is not working
-        ##### neuroglancer wants int and guassin returns float
-        #volume = gaussian(volume, 1)
+        volume = gaussian(volume, [0,0,20]) # this is a float array
+        volume[volume > 0] = self.color
         return volume.astype(np.uint16)
 
 
