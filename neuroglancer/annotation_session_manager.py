@@ -144,7 +144,6 @@ class AnnotationSessionManager():
 
         self.color = self.fetch_color_by_label(self.label)
 
-
     def create_polygons(self, data: dict):
         """
         This gets the row data from the annnotation_session table and creates a dictionary of polygons.
@@ -159,12 +158,12 @@ class AnnotationSessionManager():
 
         """
         polygons = defaultdict(list)
-        # first test data to make sure it has the right keys    
+        # first test data to make sure it has the right keys
         try:
             polygon_data = data['childJsons']
         except KeyError:
             return "No childJsons key in data. Check the data you are sending."
-        
+
         for polygon in polygon_data:
             try:
                 lines = polygon['childJsons']
@@ -201,7 +200,6 @@ class AnnotationSessionManager():
                 points = self.bspliner(points, len(points)*10, degree=3)
                 polygons[polygon] = points
         return polygons
-
 
     def create_volume(self, polygons, origin, section_size):
         """
@@ -241,12 +239,10 @@ class AnnotationSessionManager():
             volume_slice = cv2.fillPoly(volume_slice, pts=[points], color=self.color)
             volume.append(volume_slice)
         volume = np.array(volume)
-        print(f'volume shape={volume.shape}')
-        volume = np.swapaxes(volume, 0, 2)
-        volume = gaussian(volume, [0,0,20]) # this is a float array
+        volume = np.swapaxes(volume, 0, 2) # put it in x,y,z format
+        volume = gaussian(volume, [0, 0, 2])  # this is a float array
         volume[volume > 0] = self.color
         return volume.astype(np.uint16)
-
 
     def get_origin_and_section_size(self, structure_contours):
         """
@@ -278,7 +274,6 @@ class AnnotationSessionManager():
         # flipped yspan and xspan 19 Oct 2023
         section_size = np.array([yspan, xspan]).astype(int)
         return origin, section_size
-
 
     def create_segmentation_folder(self, volume, animal, label, offset):
         """
@@ -318,7 +313,7 @@ class AnnotationSessionManager():
         maker.add_segment_properties(cloud_volume=cloud_volume, segment_properties=segment_properties)
         maker.add_segmentation_mesh(cloud_volume.layer_cloudpath, mip=0)
         return folder_name
-    
+
     @staticmethod
     def fetch_color_by_label(label):
         """
@@ -375,7 +370,6 @@ class AnnotationSessionManager():
         color = 1
         return allen_structures.get(str(label), color)
 
-    
     @staticmethod
     def bspliner(cv, n=100, degree=3):
         """
