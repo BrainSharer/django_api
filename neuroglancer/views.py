@@ -90,10 +90,12 @@ class Segmentation(views.APIView):
             return Response({"msg": polygons}, status=status.HTTP_404_NOT_FOUND)
         origin, section_size = annotation_session_manager.get_origin_and_section_size(polygons)
         volume = annotation_session_manager.create_volume(polygons, origin, section_size)
+        del polygons
         if volume is None or volume.shape[0] == 0:
             return Response({"msg": "Volume could not be created"}, status=status.HTTP_404_NOT_FOUND)        
         folder_name = annotation_session_manager.create_segmentation_folder(volume, annotationSession.animal, 
                                                  label, origin.tolist())
+        del volume
         segmentation_save_folder = f"precomputed://{settings.HTTP_HOST}/structures/{folder_name}"
         if DEBUG:
             end_time = timer()
