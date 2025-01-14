@@ -55,10 +55,11 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
     }
     list_display = ('id', 'animal', 'open_neuroglancer', 'public_description', 'public', 'readonly', 'active', 'owner', 'lab', 'created', 'updated')
     list_per_page = 25
-    ordering = ['-active', '-readonly', '-updated']
+    ordering = ['-active', 'comments', '-updated']
     readonly_fields = ['user_date']
     list_filter = ['updated', 'created', 'readonly', 'active', 'public']
     search_fields = ['id', 'comments', 'description']
+    exclude = ['neuroglancer_state']
 
     def get_queryset(self, request):
         """Returns the query set of points where the layer contains annotations"""
@@ -95,6 +96,10 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
         comments = "Multi-user"
         links = f'<a target="_blank" href="{host}?id={obj.id}&amp;multi=1">{comments}</a>'
         return format_html(links)
+
+    def has_add_permission(self, request, obj=None):
+        """Returns false as the data is created from within Neuroglancer"""
+        return False
 
     open_neuroglancer.short_description = 'Neuroglancer'
     open_neuroglancer.allow_tags = True
