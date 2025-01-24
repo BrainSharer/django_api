@@ -59,7 +59,7 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
     readonly_fields = ['user_date']
     list_filter = ['updated', 'created', 'readonly', 'active', 'public']
     search_fields = ['id', 'comments', 'description']
-    exclude = ['neuroglancer_state']
+    # exclude = ['neuroglancer_state']
 
     def get_queryset(self, request):
         """Returns the query set of points where the layer contains annotations"""

@@ -155,15 +155,16 @@ def save_slide_model(self, request, obj, form, change):
                                                'insert_between_six_seven', 'insert_between_seven_eight',
                                                ).get(pk=obj.id)
 
-    for scene_index in scene_indexes:
-        new = new_values[scene_index]
-        current = current_values[scene_index]
+    for idx, scene_index in enumerate(scene_indexes):
+        
+        new = new_values[idx]
+        current = current_values[idx]
         if new is not None and new > current:
             difference = new - current
-            repeat_scene(obj, difference, scene_index)
+            repeat_scene(obj, difference, idx)
         if new is not None and new < current:
             difference = current - new
-            remove_scene(obj, difference, scene_index)
+            remove_scene(obj, difference, idx)
 
     scene_reorder(obj)
     obj.scenes = SlideCziToTif.objects.filter(slide=obj).filter(channel=1).filter(active=True).count()
