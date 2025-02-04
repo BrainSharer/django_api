@@ -18,6 +18,22 @@ POLYGON_ID = 54
 UNMARKED = 'UNMARKED'
 DEBUG = settings.DEBUG
 
+
+class NeuroglancerStateRevision(models.Model):
+
+    id = models.BigAutoField(primary_key=True)
+    FK_neuroglancer_state_id = models.IntegerField(db_column='FK_neuroglancer_state_id', verbose_name='State ID')
+    state = models.JSONField(verbose_name="Neuroglancer State")
+    editor = models.CharField(max_length=50, null=True, blank=True)
+    users = models.CharField(max_length=2001)
+
+    class Meta:
+        managed = False
+        verbose_name = "Neuroglancer state revisions"
+        verbose_name_plural = "Neuroglancer state revisions"
+        ordering = ('FK_neuroglancer_state_id',)
+        db_table = 'neuroglancer_state_revision'
+
 class NeuroglancerState(models.Model):
     """Model corresponding to the neuroglancer json states stored in the neuroglancer_state table.
     This name was used as the original verion of Neuroglancer stored all the data in the URL.

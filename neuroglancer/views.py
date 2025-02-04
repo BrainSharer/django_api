@@ -17,9 +17,9 @@ from brain.models import ScanRun
 from neuroglancer.create_state_views import NeuroglancerJSONStateManager
 from neuroglancer.annotation_session_manager import AnnotationSessionManager, get_label_ids
 from neuroglancer.models import AnnotationLabel, AnnotationSession, \
-    NeuroglancerState, SearchSessions
+    NeuroglancerState, NeuroglancerStateRevision, SearchSessions
 from neuroglancer.serializers import AnnotationLabelModelSerializer, AnnotationModelSerializer, AnnotationSearchSerializer, AnnotationSessionDataSerializer, \
-    LabelSerializer, NeuroglancerNoStateSerializer, NeuroglancerStateSerializer
+    LabelSerializer, NeuroglancerNoStateSerializer, NeuroglancerStateRevisionSerializer, NeuroglancerStateSerializer
 from neuroglancer.models import DEBUG
 
 
@@ -234,5 +234,14 @@ class NeuroglancerPrivateViewSet(viewsets.ModelViewSet):
 
     serializer_class = NeuroglancerStateSerializer
     queryset = NeuroglancerState.objects.all()
+
+
+class NeuroglancerStateRevisionView(viewsets.ModelViewSet):
+    """
+    A viewset for viewing and editing user instances.
+    """
+    # permission_classes = [permissions.IsAuthenticated]
+    serializer_class = NeuroglancerStateRevisionSerializer
+    queryset = NeuroglancerStateRevision.objects.all()
 
 

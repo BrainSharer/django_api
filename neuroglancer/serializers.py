@@ -3,7 +3,7 @@
 
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
-from neuroglancer.models import AnnotationLabel, AnnotationSession, NeuroglancerState
+from neuroglancer.models import AnnotationLabel, AnnotationSession, NeuroglancerState, NeuroglancerStateRevision
 from authentication.models import Lab, User
 
 
@@ -53,6 +53,12 @@ class NeuroglancerNoStateSerializer(serializers.ModelSerializer):
         model = NeuroglancerState
         ordering = ['-created']
         exclude = ('neuroglancer_state', )
+
+class NeuroglancerStateRevisionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model=NeuroglancerStateRevision
+        fields='__all__'
+
 
 class NeuroglancerStateSerializer(serializers.ModelSerializer):
     """Override method of entering a url into the DB.
