@@ -109,7 +109,7 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
 
 @admin.register(Points)
 class PointsAdmin(admin.ModelAdmin):
-    """This class may become deprecated, but for now it gets point data
+    """This class gets point data
     from the actual JSON and not the annotation JSON.
     """
 

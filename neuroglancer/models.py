@@ -6,7 +6,7 @@ import json
 import pandas as pd
 from django.template.defaultfilters import truncatechars
 from authentication.models import Lab
-from brain.models import AtlasModel, Animal
+from brain.models import AtlasModel, Animal, ScanRun
 from django_mysql.models import EnumField
 
 LAUREN_ID = 16
@@ -77,7 +77,7 @@ class NeuroglancerState(models.Model):
         :return: the first match if found, otherwise NA
         """
         animal = "NA"
-        pattern = 'data/(\w*)/www/neuroglancer_data'
+        pattern = 'data/(\w*)/neuroglancer_data'
         neuroglancer_json = self.neuroglancer_state
         image_layers = [layer for layer in neuroglancer_json['layers'] if layer['type'] == 'image']
         if len(image_layers) > 0:
@@ -85,26 +85,8 @@ class NeuroglancerState(models.Model):
             match = re.search(pattern, first_image_layer)
             if match is not None and match.group(1) is not None:
                 animal = match.group(1)
-            else:
-                pattern = 'data/(\w*)/neuroglancer_data'
-                match = re.search(pattern, first_image_layer)
-                if match is not None and match.group(1) is not None:
-                    animal = match.group(1)
 
         return animal
-
-    """
-    @property
-    def lab(self):
-        '''
-        The primary lab of the user
-        :param obj: animal model
-        '''
-        lab = "NA"
-        if self.owner is not None and self.owner.lab is not None:
-            lab = self.owner.lab
-        return lab
-    """
     
     @property
     def point_frame(self):
@@ -140,12 +122,23 @@ class NeuroglancerState(models.Model):
     def points(self):
         result = None
         dfs = []
+        xy_resolution = 1.0
+        z_resolution = 1.0
+        if self.animal is not None and self.animal != 'NA':
+            scan_run = ScanRun.objects.filter(prep_id=self.animal).first()
+            if scan_run is not None:
+                print(f'scan run xy resolution={scan_run.resolution} z resolution={scan_run.zresolution}')
+                xy_resolution = scan_run.resolution
+                z_resolution = scan_run.zresolution
+        
         if self.neuroglancer_state is not None:
             json_txt = self.neuroglancer_state
             layers = json_txt['layers']
             for layer in layers:
                 if 'annotations' in layer:
                     name = layer['name']
+                    source = layer['source']
+                    print(f'name={name} source={source}')
                     annotations = layer['annotations']
                     cloud_ids = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row
                                          and 'type' in row
@@ -159,6 +152,9 @@ class NeuroglancerState(models.Model):
                         df['Type'] = 'cloud point'
                         df['UUID'] = parentId
                         df['Order'] = 0
+                        df['Xum'] = df['X'] * xy_resolution
+                        df['Yum'] = df['Y'] * xy_resolution
+                        df['Zum'] = df['Section'] * z_resolution
                         descriptions = [row["description"] for row in annotations if "description" in row 
                                               and 'type' in row 
                                               and row['type'] == 'cloud'
@@ -170,7 +166,7 @@ class NeuroglancerState(models.Model):
                             descriptions = descriptions[0].replace('\n', ', ')
 
                         df['Labels'] = descriptions
-                        df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section']]
+                        df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
                         dfs.append(df)
                     ##### Finished with cloud points
 
@@ -210,16 +206,6 @@ class NeuroglancerState(models.Model):
                             if first != last:
                                 rows = self.resort_points(rows)
 
-                            if DEBUG and first != last:
-                                print()
-                                first = [round(x) for x in rows[0]['pointA']]
-                                last = [round(x) for x in rows[-1]['pointB']] 
-                                print(f'Sorted {descriptions} firstA={first} lastB={last} len points={len(rows)} first = last {first == last}')
-                                for i, row in enumerate(rows):
-                                    currentA = [round(x) for x in rows[i]['pointA']]
-                                    currentB = [round(x) for x in rows[i]['pointB']]
-                                    beforeB = [round(x) for x in rows[i-1]['pointB']]
-                                    print(f"pointA{i}={currentA} pointB{i}={currentB} pointB{i-1}={beforeB} currentA = beforeB {currentA == beforeB}')")
                  
                             points = [row['pointA'] for row in rows]
                             orders = [o for o in range(1, len(points) + 1)]
@@ -230,7 +216,11 @@ class NeuroglancerState(models.Model):
                             df['UUID'] = volume_id
                             df['Order'] = orders
                             df['Labels'] = descriptions
-                            df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section']]
+                            df['Xum'] = df['X'] * xy_resolution
+                            df['Yum'] = df['Y'] * xy_resolution
+                            df['Zum'] = df['Section'] * z_resolution
+
+                            df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
                             dfs.append(df)
 
             if len(dfs) == 0:
@@ -241,8 +231,7 @@ class NeuroglancerState(models.Model):
                 result = pd.concat(dfs)
 
         if DEBUG:
-            unique_values = result['UUID'].unique()
-            print(unique_values)
+            print(result.head())
 
         result.sort_values(by=['Layer', 'Type', 'Labels', 'UUID', 'Section', 'Order', 'X', 'Y'], inplace=True)
         return result
