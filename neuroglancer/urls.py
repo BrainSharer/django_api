@@ -1,6 +1,6 @@
 from django.urls import path, include
 from neuroglancer.views import AnnotationPrivateViewSet, NeuroglancerPrivateViewSet, NeuroglancerPublicViewSet,  \
-    NeuroglancerStateRevisionView, create_state, Segmentation, get_labels, search_annotation, search_label
+    Segmentation, get_labels, search_annotation, search_label
 
 from rest_framework import routers
 app_name = 'neuroglancer'
@@ -9,7 +9,6 @@ router = routers.DefaultRouter(trailing_slash=False)
 router.register(r'neuroglancer', NeuroglancerPrivateViewSet, basename='neuroglancer') # private portal data
 router.register(r'neuroglancer/', NeuroglancerPrivateViewSet, basename='neuroglancer') # private portal data
 router.register(r'neuroglancers', NeuroglancerPublicViewSet, basename='neuroglancers') # public data
-router.register(r'states', NeuroglancerStateRevisionView, basename='states') # state revision data
 
 annotation_urls = [
     path('annotations/labels', get_labels, name='get_labels'),
@@ -25,7 +24,6 @@ annotation_urls = [
 
 general_urls = [
     path('', include(router.urls)),
-    path('createstate', create_state)
 ]
 
 urlpatterns = annotation_urls + general_urls

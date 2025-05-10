@@ -14,16 +14,15 @@ from rest_framework.pagination import LimitOffsetPagination
 from timeit import default_timer as timer
 
 from brain.models import ScanRun
-from neuroglancer.create_state_views import NeuroglancerJSONStateManager
 from neuroglancer.annotation_session_manager import AnnotationSessionManager, get_label_ids
 from neuroglancer.models import AnnotationLabel, AnnotationSession, \
-    NeuroglancerState, NeuroglancerStateRevision, SearchSessions
+    NeuroglancerState, SearchSessions
 from neuroglancer.serializers import AnnotationLabelModelSerializer, AnnotationModelSerializer, AnnotationSearchSerializer, AnnotationSessionDataSerializer, \
-    LabelSerializer, NeuroglancerNoStateSerializer, NeuroglancerStateRevisionSerializer, NeuroglancerStateSerializer
+    LabelSerializer, NeuroglancerNoStateSerializer, NeuroglancerStateSerializer
 from neuroglancer.models import DEBUG
 
 
-
+DEFAULT_ANIMAL = 'AtlasV8'
 
 @api_view(['GET'])
 def get_labels(request):
@@ -141,8 +140,11 @@ class AnnotationPrivateViewSet(APIView):
         if 'label' not in request.data:
             return Response({"detail": "Label is required"}, status=status.HTTP_400_BAD_REQUEST)
         
+        print(request.data)
         label_ids = get_label_ids(request.data.get('label'))
         request.data.update({'labels': label_ids})
+        if 'animal' not in request.data or request.data['animal'] == 'NA':
+            request.data.update({'animal': DEFAULT_ANIMAL})
 
         serializer = AnnotationModelSerializer(data=request.data)
 
@@ -151,6 +153,8 @@ class AnnotationPrivateViewSet(APIView):
             serializer.save()
             return Response({'id': serializer.data.get('id')}, status=status.HTTP_201_CREATED)
         else:
+            if DEBUG:
+                print(f'AnnotationPrivateViewSet.post serializer errors: {serializer.errors}')
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def put(self, request, session_id):
@@ -162,7 +166,12 @@ class AnnotationPrivateViewSet(APIView):
             return Response({"detail": f"Annotation data does not exist"}, status=status.HTTP_404_NOT_FOUND)
         
         label_ids = get_label_ids(request.data.get('label'))
+        if DEBUG:
+            print(f'label_ids: {label_ids}')
+            print(f'annotation animal {existing_session.animal}')
         request.data.update({'labels': label_ids})
+        if 'animal' not in request.data or request.data['animal'] == 'NA':
+            request.data.update({'animal': existing_session.animal})
 
         serializer = AnnotationModelSerializer(existing_session, data=request.data, partial=False)
         # check to make sure the serializer is valid, if so return the ID, if not, return error code.
@@ -170,34 +179,13 @@ class AnnotationPrivateViewSet(APIView):
             serializer.save()
             return Response({'id': serializer.data.get('id')}, status=status.HTTP_200_OK)
         else:
+            if DEBUG:
+                print(f'AnnotationPrivateViewSet.put serializer errors: {serializer.errors}')
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 ##### Neuroglancer views
 
-@api_view(['POST'])
-def create_state(request):
-    if request.method == "POST":
-        data = request.data
-        layers = []
-        data = [i for i in data if not (i['id'] == 0)]
-        titles = []
-        stateManager = NeuroglancerJSONStateManager()
-        stateManager.prepare_top_attributes(data[0])
-        for d in data:
-            id = int(d['id'])
-            if id > 0:
-                layer = stateManager.create_layer(d)
-                layers.append(layer)
-                title = f"{d['group_name']} {d['layer_name']}" 
-                titles.append(title)
-        stateManager.state['layers'] = layers
-        stateManager.prepare_bottom_attributes()
-        for k,v in stateManager.state.items():
-            print(k,v)
-        title = titles[0] # hard code to 1st title
-        state_id = stateManager.create_neuroglancer_model(title)
-        return JsonResponse(state_id, safe=False)
 
 class NeuroglancerPublicViewSet(viewsets.ModelViewSet):
     """
@@ -234,14 +222,5 @@ class NeuroglancerPrivateViewSet(viewsets.ModelViewSet):
 
     serializer_class = NeuroglancerStateSerializer
     queryset = NeuroglancerState.objects.all()
-
-
-class NeuroglancerStateRevisionView(viewsets.ModelViewSet):
-    """
-    A viewset for viewing and editing user instances.
-    """
-    # permission_classes = [permissions.IsAuthenticated]
-    serializer_class = NeuroglancerStateRevisionSerializer
-    queryset = NeuroglancerStateRevision.objects.all()
 
 

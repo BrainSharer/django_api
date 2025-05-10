@@ -19,20 +19,6 @@ UNMARKED = 'UNMARKED'
 DEBUG = settings.DEBUG
 
 
-class NeuroglancerStateRevision(models.Model):
-
-    id = models.BigAutoField(primary_key=True)
-    FK_neuroglancer_state_id = models.IntegerField(db_column='FK_neuroglancer_state_id', verbose_name='State ID')
-    state = models.JSONField(verbose_name="Neuroglancer State")
-    editor = models.CharField(max_length=50, null=True, blank=True)
-    users = models.CharField(max_length=2001)
-
-    class Meta:
-        managed = False
-        verbose_name = "Neuroglancer state revisions"
-        verbose_name_plural = "Neuroglancer state revisions"
-        ordering = ('FK_neuroglancer_state_id',)
-        db_table = 'neuroglancer_state_revision'
 
 class NeuroglancerState(models.Model):
     """Model corresponding to the neuroglancer json states stored in the neuroglancer_state table.
@@ -41,7 +27,10 @@ class NeuroglancerState(models.Model):
 
     id = models.BigAutoField(primary_key=True)
     neuroglancer_state = models.JSONField(verbose_name="Neuroglancer State")
-    lab = models.ForeignKey(Lab, models.CASCADE, null=True, db_column="FK_lab_id", verbose_name='Lab')
+    lab = models.ForeignKey(Lab, on_delete=models.DO_NOTHING, null=True, db_column="FK_lab_id", verbose_name='Lab')
+    animal = models.ForeignKey(Animal,  on_delete=models.DO_NOTHING, null=True,
+                              blank=True, db_column="FK_prep_id",
+                               verbose_name="Animal")
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, null=False,
                               blank=False, db_column="FK_user_id",
                                verbose_name="User")
@@ -50,7 +39,6 @@ class NeuroglancerState(models.Model):
     readonly = models.BooleanField(default = False, verbose_name='Read only')
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True, editable=False, null=False, blank=False)
-    user_date = models.CharField(max_length=25, null=True, blank=True, default='123456789')
     comments = models.CharField(max_length=255)
     description = models.TextField(max_length=2001, blank=True, null=True)
 
@@ -69,14 +57,15 @@ class NeuroglancerState(models.Model):
             first_name = self.owner.first_name
         return first_name
 
+    """
     @property
     def animal(self):
-        """Find the animal within the url between data/ and /neuroglancer_data:
+        '''Find the animal within the url between data/ and /neuroglancer_data:
         data/MD589/neuroglancer_data/C1
         
         :return: the first match if found, otherwise NA
-        """
-        animal = "NA"
+        '''
+        animal = "Allen"
         pattern = 'data/(\w*)/neuroglancer_data'
         neuroglancer_json = self.neuroglancer_state
         image_layers = [layer for layer in neuroglancer_json['layers'] if layer['type'] == 'image']
@@ -87,7 +76,7 @@ class NeuroglancerState(models.Model):
                 animal = match.group(1)
 
         return animal
-    
+    """
     @property
     def point_frame(self):
         df = None

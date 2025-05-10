@@ -53,12 +53,12 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.CharField: {'widget': TextInput(attrs={'size': '80'})},
     }
-    list_display = ('id', 'animal', 'open_neuroglancer', 'public_description', 'public', 'readonly', 'active', 'owner', 'lab', 'created', 'updated')
+    list_display = ('id', 'show_animal', 'open_neuroglancer', 'public_description', 'public', 'readonly', 'active', 'owner', 'lab', 'created', 'updated')
     list_per_page = 25
     ordering = ['-active', 'comments', '-updated']
-    readonly_fields = ['user_date']
     list_filter = ['updated', 'created', 'readonly', 'active', 'public']
-    search_fields = ['id', 'comments', 'description']
+    search_fields = ['id', 'comments', 'description', 'animal__prep_id']
+    exclude = ['neuroglancer_state']
     # exclude = ['neuroglancer_state']
 
     def get_queryset(self, request):
@@ -88,14 +88,18 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
         else:
             return obj.description[0:DISPLAY_LENGTH] + '...'
 
-    def open_multiuser(self, obj):
-        """This method creates an HTML link that allows the user to access Neuroglancer 
-        in multi user mode.
+    def show_animal(self, obj):
+        """Show a warning to the user if the animal is NULL and hence the state is readonly
         """
-        host = settings.NG_URL
-        comments = "Multi-user"
-        links = f'<a target="_blank" href="{host}?id={obj.id}&amp;multi=1">{comments}</a>'
-        return format_html(links)
+        if obj.animal is None:
+            return format_html(
+                '<span style="color: red;">{}</span>',
+                'Animal is missing. Please edit and add the animal.'
+            )
+        else:
+            return obj.animal
+            
+        
 
     def has_add_permission(self, request, obj=None):
         """Returns false as the data is created from within Neuroglancer"""
@@ -103,8 +107,8 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
 
     open_neuroglancer.short_description = 'Neuroglancer'
     open_neuroglancer.allow_tags = True
-    open_multiuser.short_description = 'Multi-User'
-    open_multiuser.allow_tags = True
+    show_animal.short_description = 'Multi-User'
+    show_animal.allow_tags = True
 
 
 @admin.register(Points)
@@ -118,7 +122,7 @@ class PointsAdmin(admin.ModelAdmin):
     readonly_fields = ['created', 'updated']
     search_fields = ['id', 'comments']
     list_filter = ['created', 'updated', 'readonly']
-    exclude = ['neuroglancer_state', 'user_date']
+    exclude = ['neuroglancer_state']
 
     def open_neuroglancer(self, obj):
         """This method creates an HTML link that allows the user to access Neuroglancer"""

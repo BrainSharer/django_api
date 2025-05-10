@@ -1,4 +1,6 @@
+import json
 import random
+import re
 import string
 import os, sys
 import argparse
@@ -15,6 +17,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'brainsharer.settings')
 django.setup()
 
 
+from brain.models import Animal
 from neuroglancer.models import NeuroglancerState, AnnotationSession
 
 class Parsedata:
@@ -23,6 +26,44 @@ class Parsedata:
         self.layer_name = layer_name
         self.layer_type = layer_type
         self.debug = debug
+
+    def update_neuroglancer_state_animal(self):
+        all_states = 0
+        bad_states = 0
+        good_states = 0
+        if self.id > 0:
+            state = NeuroglancerState.objects.get(pk=self.id)
+            states = [state]
+        else:
+            states = NeuroglancerState.objects.all()
+        for state in states:
+            all_states += 1
+
+            animal = "Allen"
+            pattern = 'data/(\w*)/neuroglancer_data'
+            neuroglancer_json = state.neuroglancer_state
+            image_layers = [layer for layer in neuroglancer_json['layers'] if layer['type'] == 'image']
+            if len(image_layers) > 0:
+                first_image_layer = json.dumps(image_layers[0])
+                match = re.search(pattern, first_image_layer)
+                if match is not None and match.group(1) is not None:
+                    animal = match.group(1)
+                    print(state.id, state.comments, animal)
+                    good_states += 1
+                    animal_object = Animal.objects.get(pk=animal)
+                    NeuroglancerState.objects.filter(pk=state.id).update(animal=animal_object, updated=state.updated)
+                    #state.animal = animal_object
+                    #state.updated = state.updated
+                    #state.save()
+
+                else:
+                    print(f"\tAnimal not found in {state.comments} {state.id}")
+                    NeuroglancerState.objects.filter(pk=state.id).update(readonly=True, updated=state.updated)
+                    #state.save()
+                    bad_states += 1
+        print(f"Total states {all_states} with {good_states} good and {bad_states} bad, bad+good={good_states+bad_states}")    
+
+
 
     def fix_neuroglancer_state(self):
         if self.id > 0:
@@ -487,6 +528,7 @@ if __name__ == '__main__':
             "session": pipeline.parse_annotation,
             "fix": pipeline.fix_neuroglancer_state,
             "show": pipeline.show_annotations,
+            "fix_animal": pipeline.update_neuroglancer_state_animal,
         }
 
     if task in function_mapping:

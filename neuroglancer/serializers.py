@@ -3,7 +3,7 @@
 
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
-from neuroglancer.models import AnnotationLabel, AnnotationSession, NeuroglancerState, NeuroglancerStateRevision
+from neuroglancer.models import AnnotationLabel, AnnotationSession, NeuroglancerState
 from authentication.models import Lab, User
 
 
@@ -54,18 +54,13 @@ class NeuroglancerNoStateSerializer(serializers.ModelSerializer):
         ordering = ['-created']
         exclude = ('neuroglancer_state', )
 
-class NeuroglancerStateRevisionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model=NeuroglancerStateRevision
-        fields='__all__'
-
 
 class NeuroglancerStateSerializer(serializers.ModelSerializer):
     """Override method of entering a url into the DB.
     The url *probably* can't be in the NeuroglancerState when it is returned
     to neuroglancer as it crashes neuroglancer.
     """
-    animal = serializers.CharField(required=False)
+    #animal = serializers.CharField(required=False)
     lab = serializers.CharField(required=False)
 
     class Meta:
@@ -74,11 +69,15 @@ class NeuroglancerStateSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def create(self, validated_data):
+        print('validated_data', validated_data)
         """This method gets called when a user clicks New in Neuroglancer
         """
+        animal = validated_data.get('animal', None)
+        if animal is None:
+            raise APIException('Animal was not in validated data')
         obj = NeuroglancerState(
             neuroglancer_state=validated_data['neuroglancer_state'],
-            user_date=validated_data['user_date'],
+            animal=animal,
             comments=validated_data['comments'],
         )
         if 'owner' in validated_data:
@@ -93,7 +92,6 @@ class NeuroglancerStateSerializer(serializers.ModelSerializer):
         """
         
         obj.neuroglancer_state = validated_data.get('neuroglancer_state', obj.neuroglancer_state)
-        obj.user_date = validated_data.get('user_date', obj.user_date)
         obj.comments = validated_data.get('comments', obj.comments)
         if 'owner' in validated_data:
             owner = validated_data['owner']
