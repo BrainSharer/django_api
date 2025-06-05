@@ -99,7 +99,6 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
         else:
             return obj.animal
             
-        
 
     def has_add_permission(self, request, obj=None):
         """Returns false as the data is created from within Neuroglancer"""
@@ -107,7 +106,7 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
 
     open_neuroglancer.short_description = 'Neuroglancer'
     open_neuroglancer.allow_tags = True
-    show_animal.short_description = 'Multi-User'
+    show_animal.short_description = 'Animal'
     show_animal.allow_tags = True
 
 

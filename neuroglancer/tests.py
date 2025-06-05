@@ -19,6 +19,7 @@ class TestSetUp(TestCase):
         self.atlas_name = 'Atlas'
         self.label = 'SC'
         self.annotation_session_id = 7927
+        self.source_data = [1,2,39999]
         # annotator
         try:
             query_set = User.objects.filter(username=self.annotator_username)
@@ -180,9 +181,20 @@ class TestAnnotations(TestSetUp):
     def test_annotations_new_noid(self):
         """Test the API that creates a new annotation session
         """
-        data = {"label": self.label, "animal": self.animal.prep_id, "annotator": self.annotator.id, "annotation" : {"source": [1,2,3]}}
+        data = {"label": self.label, "animal": self.animal.prep_id, "annotator": self.annotator.id, "annotation" : {"source": self.source_data}}
         client = APIClient()
         response = client.post(self.annotation_api_url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_annotations_new_noid_no_animal(self):
+        """Test the API that creates a new annotation session
+        """
+        data = {"label": self.label, "annotator": self.annotator.id, "annotation" : {"source": [1,2,3]}}
+        print(f"test_annotations_new_noid_no_animal data: {data}")
+        client = APIClient()
+        response = client.post(self.annotation_api_url, data, format='json')
+        print(f"\ntest_annotations_new_noid_no_animal response: {response.data}\n")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -195,5 +207,14 @@ class TestAnnotations(TestSetUp):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_annotations_put_no_animal(self):
+        """Test the API that updates an existing annotation session
+        """
+        data = {"id": str(self.annotation_session_id), "label": "SC\nICXXXXX", "annotator": self.annotator.id, "annotation" : {"source": self.source_data}}
+        print(f"test_annotations_save_no_animal data: {data}")
+        client = APIClient()
+        response = client.put(f"{self.annotation_api_url}{self.annotation_session_id}", data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 

@@ -49,8 +49,9 @@ def search_annotation(request, search_string=None):
     data = []
     if search_string:
         rows = SearchSessions.objects\
-            .filter(animal_abbreviation_username__icontains=search_string).order_by('animal_abbreviation_username').distinct()
-
+            .filter(animal_abbreviation_username__icontains=search_string)\
+        .order_by('animal_abbreviation_username').distinct()
+        print(rows.query)
         for row in rows:
             data.append({
                 "id": row.id,
@@ -135,12 +136,15 @@ class AnnotationPrivateViewSet(APIView):
     def post(self, request):
         if DEBUG:
             print('AnnotationPrivateViewSet.post')
+        # check to make sure the serializer is valid, if so return the ID, if not, return error code.    
         if 'id' in request.data:
             del request.data['id']
         if 'label' not in request.data:
             return Response({"detail": "Label is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        print(request.data)
+        if 'animal' not in request.data or request.data['animal'] == None:
+            return Response({"detail": "Animal is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if DEBUG:
+            print(request.data)
         label_ids = get_label_ids(request.data.get('label'))
         request.data.update({'labels': label_ids})
         if 'animal' not in request.data or request.data['animal'] == 'NA':
@@ -160,6 +164,7 @@ class AnnotationPrivateViewSet(APIView):
     def put(self, request, session_id):
         if DEBUG:
             print('AnnotationPrivateViewSet.put')
+
         try:
             existing_session = AnnotationSession.objects.get(pk=session_id)
         except AnnotationSession.DoesNotExist:
