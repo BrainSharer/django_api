@@ -32,7 +32,6 @@ def get_labels(request):
 
 @api_view(['GET'])
 def search_label(request, search_string=None):
-    permissions = [permissions.IsAuthenticatedOrReadOnly]
     data = []
     if search_string:
         labels = AnnotationLabel.objects\
