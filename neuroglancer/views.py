@@ -32,6 +32,7 @@ def get_labels(request):
 
 @api_view(['GET'])
 def search_label(request, search_string=None):
+    permissions = [permissions.IsAuthenticatedOrReadOnly]
     data = []
     if search_string:
         labels = AnnotationLabel.objects\
@@ -66,7 +67,7 @@ class Segmentation(views.APIView):
     """Method to create a 3D volume from existing annotation
     """
 
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     
     def get(self, request, session_id):
@@ -112,7 +113,7 @@ class AnnotationPrivateViewSet(APIView):
     """
 
     queryset = AnnotationSession.objects.all()
-    # permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, session_id=None):
         if DEBUG:
@@ -199,7 +200,7 @@ class NeuroglancerPublicViewSet(viewsets.ModelViewSet):
     It was more convienent to do them there than here.
     """
 
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     pagination_class = LimitOffsetPagination
     serializer_class = NeuroglancerNoStateSerializer
 
@@ -223,7 +224,7 @@ class NeuroglancerPrivateViewSet(viewsets.ModelViewSet):
     """
     A viewset for viewing and editing user instances.
     """
-    # permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     serializer_class = NeuroglancerStateSerializer
     queryset = NeuroglancerState.objects.all()
