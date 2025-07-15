@@ -313,6 +313,12 @@ class SlideCziToTif(AtlasModel):
     comments = models.TextField(max_length=2000, blank=True, null=True)
     file_size = models.FloatField(verbose_name='File size (bytes)')
     processing_duration = models.FloatField(verbose_name="Processing time (seconds)")
+    scene_order = models.PositiveIntegerField(
+        default=0,
+        blank=False,
+        null=False,
+        db_index=True
+    )    
 
     def max_scene(self):
         """This method gives you the number of scenes on a slide
@@ -323,9 +329,9 @@ class SlideCziToTif(AtlasModel):
     class Meta():
         managed = False
         db_table = 'slide_czi_to_tif'
-        verbose_name = 'Slide CZI to TIF'
-        verbose_name_plural = 'Slides CZI to TIF'
-        ordering = ['scene_number', 'channel']
+        verbose_name = 'Slide TIF'
+        verbose_name_plural = 'Slide TIFs'
+        ordering = ['scene_order', 'channel', 'file_name']
 
     def __str__(self):
         return "{}".format(self.file_name)

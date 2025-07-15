@@ -4,7 +4,6 @@ a web page or in a REST API call. This module is the 'V' in the MVC framework fo
 from django.shortcuts import render
 from brain.models import Animal, Section
 from brain.forms import AnimalForm
-from rest_framework import status
 from django.http import Http404, JsonResponse
 from rest_framework import views
 from rest_framework.response import Response
@@ -68,7 +67,6 @@ class AnimalDetail(views.APIView):
         return Response(serializer.data)
 
 
-
 class ScanResolution(views.APIView):
     """A simple class to return the x,y,z scan resolution.
     """
@@ -88,3 +86,4 @@ class ScanResolution(views.APIView):
         else:
             response = {'resolution': None}
         return JsonResponse(response)
+

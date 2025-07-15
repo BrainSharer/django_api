@@ -9,9 +9,11 @@ from django.contrib import admin
 from django.conf import settings
 from django.shortcuts import HttpResponseRedirect
 from django.utils.safestring import mark_safe
-from django.db.models import Count
+from adminsortable2.admin import SortableAdminMixin
+from import_export import resources
+from import_export.admin import ImportExportModelAdmin
 
-from brain.forms import save_slide_model, TifInlineFormset, scene_reorder
+from brain.forms import save_slide_model, TifInlineFormset, scene_reorder, CustomExportForm
 from brain.models import (Animal, Histology, Injection, Virus, InjectionVirus,
                           ScanRun, Slide, SlideCziToTif, Section)
 from brainsharer.admin_extensions import AtlasAdminModel, ExportCsvMixin
@@ -27,6 +29,8 @@ class AnimalAdmin(AtlasAdminModel, ExportCsvMixin):
     search_fields = ('prep_id',)
     ordering = ['prep_id']
     exclude = ('created',)
+
+
 
 @admin.register(Histology)
 class HistologyAdmin(AtlasAdminModel, ExportCsvMixin):
@@ -518,41 +522,50 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
             return HttpResponseRedirect(".")
         return super().response_change(request, obj)
 
+class SectionResource(resources.ModelResource):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.animal = kwargs.get("slide__scan_run__prep")
+
+    def filter_export(self, queryset, **kwargs):
+        query = queryset.filter(slide__scan_run__prep=self.animal) 
+        print(f"DEBUG: Filtering queryset for animal {self.animal}: -> {query.query}")
+        return query
+
+    class Meta:
+        model = SlideCziToTif 
+        fields = ('id', 'czifile', 'file_name', 'scene_order', 'channel', 'active')
+        #exclude = ('scene_index', 'file_size', 'width', 'height', 'processing_duration')
+
+    
 @admin.register(SlideCziToTif)
-class SlideCziToTifAdmin(AtlasAdminModel, ExportCsvMixin):
-    """A class to administer the individual scene, AKA the TIFF file.
+class OrderingAdmin(ImportExportModelAdmin):
+    resource_classes = [SectionResource]
+    export_form_class = CustomExportForm
 
-    :Inheritance:
-        :AtlasAdminModel: The base admin model
-        :ExportCsvMixin: The class with standard features and CSV 
-            exporter method.
-    """
-    list_display = ('file_name', 'scene_number', 'channel','file_size')
-    ordering = ['file_name', 'scene_number', 'channel', 'file_size']
-    exclude = ['processing_duration']
-    readonly_fields = ['file_name', 'scene_number','slide','scene_index', 'channel', 'file_size', 'width','height']
-    search_fields = ['file_name']
+    search_fields = ['slide__scan_run__prep__prep_id']
+    list_display = ('slide__file_name', 'file_name', 'scene_order', 'channel', 'active', 'created')
+    ordering = ['slide__scan_run__prep__prep_id', 'scene_order', 'channel', 'file_name']
 
+    def get_export_resource_kwargs(self, request, **kwargs):
+        export_form = kwargs.get("export_form")
+        if export_form:
+            kwargs.update(slide__scan_run__prep=export_form.cleaned_data["animal"])
+        return kwargs    
 
     def has_delete_permission(self, request, obj=None):
-        """Cannot show or use the delete button at this stage
-
-        :param request: http request
-        :param obj: the TIFF obj
-        :return: False
-        """
         return False
 
     def has_add_permission(self, request, obj=None):
-        """Cannot show or use the add button at this stage
-
-        :param request: http request
-        :param obj: the TIFF obj
-        :return: False
-        """
         return False
-
-
+    
+    def has_change_permission(self, request, obj=None):
+        return False
+    
+    def has_view_permission(self, request, obj=None):
+        return True
+    
+    
 @admin.register(Section)
 class SectionAdmin(AtlasAdminModel, ExportCsvMixin):
     """This class describes the Section methods and attributes. 

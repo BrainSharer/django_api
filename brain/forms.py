@@ -2,9 +2,10 @@
 The user can rearrange, edit, and hide scenes with these forms.
 """
 from django import forms
-from django.db.models import Q
 from django.forms import ModelChoiceField
 from brain.models import Animal, Slide, SlideCziToTif
+from import_export.forms import ExportForm
+
 
 
 class AnimalForm(forms.Form):
@@ -197,3 +198,12 @@ class TifInlineFormset(forms.models.BaseInlineFormSet):
                 tif.save()
         
         return obj
+
+class AnimalFormMixin(forms.Form):
+    animal = forms.ModelChoiceField(queryset=Animal.objects.all(), required=True)
+
+class CustomExportForm(AnimalFormMixin, ExportForm):
+    """Customized ExportForm, with author field required."""
+    animal = forms.ModelChoiceField(
+        queryset=Animal.objects.all(),
+        required=True)

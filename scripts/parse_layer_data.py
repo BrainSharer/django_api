@@ -107,7 +107,7 @@ class Parsedata:
         existing_state = state.neuroglancer_state # big JSON
         layers = existing_state['layers'] # list of dictionaries
         for i, layer in enumerate(layers): # layers is a list
-            if 'annotations' in layer: # We will be updating this layer in the state
+            if 'annotations' in layer: # just look at the layers with annotations
                 if layer_type == 'cloud':
                     self.show_v1_cloud_annotations(layer)
                     self.show_v2_cloud_annotations(layer)
@@ -124,7 +124,8 @@ class Parsedata:
         # type for v1 is either line or polygon
         if name == 'annotation':
             for annotation in annotations:
-                print(f'Annotation type={annotation["type"]}')
+                #print(f'Annotation type={annotation["type"]}')
+                print(f'Annotation {annotation}')
                 
 
 
