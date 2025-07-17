@@ -1,4 +1,4 @@
-abakit @ file:///home/eodonnell/programming/abakit
+abakit @ file:///home/eddyod/programming/abakit
 alabaster==0.7.16
 anyio==4.4.0
 argon2-cffi==23.1.0
@@ -19,7 +19,6 @@ botocore==1.29.96
 brain-atlas-toolkit==0.4.3
 Brotli==1.0.9
 bs4==0.0.1
-build==0.10.0
 cachetools==5.3.0
 certifi==2022.6.15
 cffi==1.15.1
@@ -34,10 +33,8 @@ compressed-segmentation==2.2.0
 compresso==3.2.0
 connected-components-3d==3.10.5
 constantly==15.1.0
-contourpy==1.0.7
 crc32c==2.3.post0
 cryptography==38.0.1
-cycler==0.11.0
 daphne==2.5.0
 dash==2.8.1
 dash-bootstrap-components==0.13.1
@@ -48,19 +45,21 @@ debugpy==1.6.3
 decorator==5.1.1
 deflate==0.3.0
 defusedxml==0.7.1
+diff-match-patch==20241021
 dijkstra3d==1.12.1
 dill==0.3.6
-Django==5.1.4
-django-allauth==0.57.0
-django-cors-headers==4.2.0
+Django==5.2.4
+django-admin-sortable2==2.2.8
+django-allauth==65.10.0
+django-cors-headers==4.7.0
 django-debug-toolbar==4.2.0
-django-extensions==3.2.3
-django-mysql==4.11.0
-django-plotly-dash==2.3.1
-djangorestframework==3.14.0
-djangorestframework-simplejwt==5.3.0
+django-import-export==4.3.8
+django-mysql==4.17.0
+django-plotly-dash==2.5.0
+djangorestframework==3.16.0
+djangorestframework_simplejwt==5.5.0
 docutils==0.20.1
-dpd-components==0.1.0
+dpd-components==0.2.0
 dpd-static-support==0.0.5
 DracoPy==1.2.0
 edt==2.3.0
@@ -71,7 +70,6 @@ fastjsonschema==2.20.0
 fastremap==1.13.4
 fill-voids==2.0.4
 Flask==2.1.3
-fonttools==4.39.3
 fpzip==1.2.0
 fqdn==1.5.1
 gevent==23.9.1
@@ -88,7 +86,7 @@ googleapis-common-protos==1.59.0
 graphviz==0.20.1
 greenlet==2.0.2
 grpc-google-iam-v1==0.12.6
-grpcio==1.69.0
+grpcio==1.54.0
 grpcio-status==1.54.0
 gunicorn==22.0.0
 h11==0.14.0
@@ -128,12 +126,10 @@ jupyterlab_server==2.27.2
 jupyterlab_widgets==3.0.11
 k3d==2.16.1
 kimimaro==3.3.0
-kiwisolver==1.4.4
 lazy_loader==0.2
 mapbuffer==0.7.0
 Markdown==3.4.1
-MarkupSafe==2.1.2
-matplotlib==3.7.1
+MarkupSafe==3.0.2
 matplotlib-inline==0.1.6
 mistune==3.0.2
 msgpack==1.0.8
@@ -172,7 +168,6 @@ prompt-toolkit==3.0.31
 proto-plus==1.22.2
 protobuf==4.22.1
 psutil==5.9.2
-psycopg2-binary==2.9.6
 ptyprocess==0.7.0
 pure-eval==0.2.2
 pyasn1==0.4.8
@@ -181,11 +176,9 @@ pycparser==2.21
 pyfqmr==0.2.0
 Pygments==2.18.0
 PyJWT==2.4.0
-PyMCubes==0.1.4
 PyMySQL==1.1.1
 pyOpenSSL==23.0.0
 pyparsing==3.0.9
-pyproject_hooks==1.0.0
 pyrsistent==0.19.3
 pysimdjson==5.0.2
 pyspng-seunglab==1.0.0
@@ -213,14 +206,12 @@ scikit-image==0.20.0
 scipy==1.9.1
 Send2Trash==1.8.3
 service-identity==21.1.0
-SimpleITK==2.2.0
 simplejpeg==1.6.5
 six==1.16.0
 sniffio==1.3.1
 snowballstemmer==2.2.0
 soupsieve==2.3.2.post1
 Sphinx==7.4.7
-sphinx-js==4.0.0
 sphinx-rtd-theme==2.0.0
 sphinxcontrib-applehelp==2.0.0
 sphinxcontrib-devhelp==2.0.0
@@ -232,6 +223,7 @@ sphinxcontrib-serializinghtml==2.0.0
 SQLAlchemy==2.0.7
 sqlparse==0.4.2
 stack-data==0.5.0
+tablib==3.8.0
 task-queue==2.12.1
 tenacity==8.2.2
 terminado==0.18.1
@@ -248,16 +240,14 @@ Twisted==22.10.0
 txaio==23.1.1
 types-python-dateutil==2.9.0.20240316
 typing_extensions==4.5.0
-tzdata==2023.3
 uri-template==1.3.0
 urllib3==1.26.12
 urllib3-secure-extra==0.1.0
-vtk==9.2.6
 wcwidth==0.2.5
 webcolors==24.6.0
 webencodings==0.5.1
 websocket-client==1.8.0
-Werkzeug==2.2.3
+Werkzeug==2.3.8
 widgetsnbextension==4.0.11
 zfpc==0.1.2
 zfpy==1.0.0

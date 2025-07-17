@@ -537,6 +537,25 @@ class SectionResource(resources.ModelResource):
         fields = ('id', 'czifile', 'file_name', 'scene_order', 'channel', 'active')
         #exclude = ('scene_index', 'file_size', 'width', 'height', 'processing_duration')
 
+@admin.action(description="Duplicate selected items")
+def duplicate_selected_items(modeladmin, request, queryset):
+    for obj in queryset:
+        import copy
+        # Create a copy of the object
+        obj_copy = copy.copy(obj)
+        # Set the primary key to None to create a new object upon saving
+        obj_copy.pk = None
+        # Save the copied object, which creates a new row in the database
+        obj_copy.save()
+
+        # If your model has ManyToMany fields, you'll need to copy them explicitly
+        # For example, if 'tags' is a ManyToMany field:
+        # obj_copy.tags.set(obj.tags.all())
+
+        # If your model has ForeignKey relationships that you also want to duplicate
+        # (e.g., related objects like images or details), you'll need to handle
+        # that logic here, potentially by creating copies of those related objects
+        # and assigning them to obj_copy.    
     
 @admin.register(SlideCziToTif)
 class OrderingAdmin(ImportExportModelAdmin):
@@ -546,6 +565,7 @@ class OrderingAdmin(ImportExportModelAdmin):
     search_fields = ['slide__scan_run__prep__prep_id']
     list_display = ('slide__file_name', 'file_name', 'scene_order', 'channel', 'active', 'created')
     ordering = ['slide__scan_run__prep__prep_id', 'scene_order', 'channel', 'file_name']
+    actions = [duplicate_selected_items]
 
     def get_export_resource_kwargs(self, request, **kwargs):
         export_form = kwargs.get("export_form")
@@ -564,7 +584,7 @@ class OrderingAdmin(ImportExportModelAdmin):
     
     def has_view_permission(self, request, obj=None):
         return True
-    
+
     
 @admin.register(Section)
 class SectionAdmin(AtlasAdminModel, ExportCsvMixin):
