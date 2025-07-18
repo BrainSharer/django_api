@@ -535,7 +535,7 @@ class SectionResource(resources.ModelResource):
 
     class Meta:
         model = SlideCziToTif 
-        fields = ('id', 'czifile', 'file_name', 'scene_order', 'channel', 'active')
+        fields = ('id', 'slide', 'file_name', 'scene_order', 'channel', 'active')
         #exclude = ('scene_index', 'file_size', 'width', 'height', 'processing_duration')
 
 @admin.action(description="Duplicate selected items")
@@ -548,42 +548,47 @@ def duplicate_selected_items(modeladmin, request, queryset):
         # Save the copied object, which creates a new row in the database
         obj_copy.save()
 
-        # If your model has ManyToMany fields, you'll need to copy them explicitly
-        # For example, if 'tags' is a ManyToMany field:
-        # obj_copy.tags.set(obj.tags.all())
+@admin.action(description="Set items active")
+def activate_selected_items(modeladmin, request, queryset):
+    for obj in queryset:
+        # Create a copy of the object
+        obj.active = True
+        obj.save()
 
-        # If your model has ForeignKey relationships that you also want to duplicate
-        # (e.g., related objects like images or details), you'll need to handle
-        # that logic here, potentially by creating copies of those related objects
-        # and assigning them to obj_copy.    
+@admin.action(description="Set items inactive")
+def inactivate_selected_items(modeladmin, request, queryset):
+    for obj in queryset:
+        # Create a copy of the object
+        obj.active = False
+        obj.save()
+
     
 @admin.register(SlideCziToTif)
-class OrderingAdmin(ImportExportModelAdmin):
+class OrderingAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     resource_classes = [SectionResource]
     export_form_class = CustomExportForm
 
-    search_fields = ['slide__scan_run__prep__prep_id']
-    list_display = ('slide__file_name', 'file_name', 'scene_order', 'channel', 'active', 'created')
-    ordering = ['slide__scan_run__prep__prep_id', 'scene_order', 'channel', 'file_name']
-    actions = [duplicate_selected_items]
+    search_fields = ['slide__scan_run__prep__prep_id', 'file_name']
+    list_display = ('id', 'file_name', 'scene_order', 'channel', 'active', 'created')
+    ordering = ['scene_order', 'channel', 'file_name']
+    actions = [duplicate_selected_items, activate_selected_items, inactivate_selected_items]
+    list_filter = ['active', 'channel']
+
+    def has_add_permission(self, request, obj=None):
+        """The add button is not shown as sections are a view and they can't be added to.
+
+        :param request: http request
+        :param obj: the section obj
+        :return: False
+        """
+        return False
+
 
     def get_export_resource_kwargs(self, request, **kwargs):
         export_form = kwargs.get("export_form")
         if export_form:
             kwargs.update(slide__scan_run__prep=export_form.cleaned_data["animal"])
         return kwargs    
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-    def has_add_permission(self, request, obj=None):
-        return False
-    
-    def has_change_permission(self, request, obj=None):
-        return False
-    
-    def has_view_permission(self, request, obj=None):
-        return True
 
     
 @admin.register(Section)

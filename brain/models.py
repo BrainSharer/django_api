@@ -306,13 +306,13 @@ class SlideCziToTif(AtlasModel):
     scene_number = models.IntegerField(blank=False, null=False, default=1,
                                                     verbose_name='Scene Ordering',
                                                     validators=[MinValueValidator(1),MaxValueValidator(100)])
-    scene_index = models.IntegerField()
+    scene_index = models.IntegerField(blank=False, null=False, default=1)
     channel = models.IntegerField()
-    width = models.IntegerField(verbose_name='Width (pixels)')
-    height = models.IntegerField(verbose_name='Height (pixels)')
+    width = models.IntegerField(verbose_name='Width (pixels)', blank=False, null=False, default=0)
+    height = models.IntegerField(verbose_name='Height (pixels)', blank=False, null=False, default=0)
     comments = models.TextField(max_length=2000, blank=True, null=True)
-    file_size = models.FloatField(verbose_name='File size (bytes)')
-    processing_duration = models.FloatField(verbose_name="Processing time (seconds)")
+    file_size = models.FloatField(verbose_name='File size (bytes)', blank=False, null=False, default=0)
+    processing_duration = models.FloatField(verbose_name="Processing time (seconds)", blank=False, null=False, default=0)
     scene_order = models.PositiveIntegerField(
         default=0,
         blank=False,
