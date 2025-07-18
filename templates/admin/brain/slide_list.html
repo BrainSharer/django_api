@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scene List</title>
+</head>
+<body>
+    <h1>Scene List</h1>
+    <form method="post" action="{% url 'scene_list' %}">
+        {% csrf_token %}
+        <ul>
+            {% for item in items %}
+                <li>
+                    {{ item.file_name }}
+                    <input type="hidden" name="id" value="{{ item.id }}">
+                    <button type="submit" name="direction" value="up">Up</button>
+                    <button type="submit" name="direction" value="down">Down</button>
+                </li>
+            {% endfor %}
+        </ul>
+    </form>
+</body>
+</html>

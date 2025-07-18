@@ -7,7 +7,7 @@ app_name = 'neuroglancer'
 
 router = routers.DefaultRouter(trailing_slash=False)
 router.register(r'neuroglancer', NeuroglancerPrivateViewSet, basename='neuroglancer') # private portal data
-router.register(r'neuroglancer/', NeuroglancerPrivateViewSet, basename='neuroglancer') # private portal data
+#router.register(r'neuroglancer/', NeuroglancerPrivateViewSet, basename='neuroglancer_') # private portal data
 router.register(r'neuroglancers', NeuroglancerPublicViewSet, basename='neuroglancers') # public data
 
 annotation_urls = [

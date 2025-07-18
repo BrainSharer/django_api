@@ -12,6 +12,7 @@ from django.utils.safestring import mark_safe
 from adminsortable2.admin import SortableAdminMixin
 from import_export import resources
 from import_export.admin import ImportExportModelAdmin
+import copy
 
 from brain.forms import save_slide_model, TifInlineFormset, scene_reorder, CustomExportForm
 from brain.models import (Animal, Histology, Injection, Virus, InjectionVirus,
@@ -540,7 +541,6 @@ class SectionResource(resources.ModelResource):
 @admin.action(description="Duplicate selected items")
 def duplicate_selected_items(modeladmin, request, queryset):
     for obj in queryset:
-        import copy
         # Create a copy of the object
         obj_copy = copy.copy(obj)
         # Set the primary key to None to create a new object upon saving

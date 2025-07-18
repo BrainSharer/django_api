@@ -1,7 +1,6 @@
 from django.db import models
 from django.conf import settings
 from django.utils.html import escape
-import re
 import json
 import pandas as pd
 from django.template.defaultfilters import truncatechars
