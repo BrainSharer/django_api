@@ -15,6 +15,10 @@ POINT_ID = 52
 LINE_ID = 53
 POLYGON_ID = 54
 UNMARKED = 'UNMARKED'
+MICRON = "\u00b5"
+XUM = f'X{MICRON}'
+YUM = f'Y{MICRON}'
+ZUM = f'Z{MICRON}'
 DEBUG = settings.DEBUG
 
 
@@ -115,7 +119,6 @@ class NeuroglancerState(models.Model):
         if self.animal is not None and self.animal != 'NA':
             scan_run = ScanRun.objects.filter(prep_id=self.animal).first()
             if scan_run is not None:
-                print(f'scan run xy resolution={scan_run.resolution} z resolution={scan_run.zresolution}')
                 xy_resolution = scan_run.resolution
                 z_resolution = scan_run.zresolution
         
@@ -125,13 +128,41 @@ class NeuroglancerState(models.Model):
             for layer in layers:
                 if 'annotations' in layer:
                     name = layer['name']
-                    source = layer['source']
-                    print(f'name={name} source={source}')
                     annotations = layer['annotations']
+                    ##### This is for the points
+                    point_ids = list(set(row["id"] for row in annotations if "id" in row and 'point' in row))
+                    for point_id in point_ids:
+                        points = [row['point'] for row in annotations if 'point' in row and "id" in row and row["id"] == point_id]
+                        df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
+                        df['Section'] = df['Section'].astype(int)
+                        df['Layer'] = name
+                        df['Type'] = 'point'
+                        df['UUID'] = point_id
+                        df['Order'] = 0
+                        df['Xum'] = df['X'] * xy_resolution
+                        df['Yum'] = df['Y'] * xy_resolution
+                        df['Zum'] = df['Section'] * z_resolution
+
+                        descriptions = [row["description"] for row in annotations if "description" in row 
+                                              and 'type' in row 
+                                              and row['type'] == 'point'
+                                              and 'id' in row
+                                              and row['id'] == point_id]
+                        if len(descriptions) == 0:
+                            descriptions = 'unlabeled point'
+                        else:
+                            descriptions = descriptions[0].replace('\n', ', ')
+                        
+                        df['Labels'] = descriptions
+                        df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
+                        dfs.append(df)
+                    
+                    ##### Finished with points
+
+                    ##### This is for cloud points
                     cloud_ids = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row
                                          and 'type' in row
                                          and row['type'] == 'point'))
-
                     for parentId in cloud_ids:
                         points = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == parentId]
                         df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
