@@ -396,7 +396,10 @@ class Parsedata:
                     parent_id = 'NA'
                 line_ids = [row['childAnnotationIds'] for row in existing_annotations if "type" in row and row["type"] == "polygon"
                             and "childAnnotationIds" in row and row["id"] == polygon_id][0]
-                print(f"\tPolygon ID={polygon_id[0:5]} parent={parent_id[0:5]} with {len(line_ids)} lines")
+                single_parents = set([row["parentAnnotationId"] for row in existing_annotations if "parentAnnotationId" in row and row["type"] == 'line'
+                                and "id" in row and row["id"] in line_ids])
+                print(f"\tPolygon ID={polygon_id[0:5]} parent={parent_id[0:5]} with {len(line_ids)} lines with line parentIDs={single_parents}")
+                
                 polygon = {}
                 lines_source = [row for row in existing_annotations if "type" in row and row["type"] == 'line'
                                 and "id" in row and row["id"] in line_ids]
@@ -404,7 +407,6 @@ class Parsedata:
                     pointA = line_source["pointA"]
                     pointB = line_source["pointB"]
                     points.append(pointA)
-                    print(f"\t\tLine parent:{line_source.get('parentAnnotationId', 'N/A')[0:5]}")
                     
                     if "props" in line_source and "type" in line_source and line_source["type"] == "line":
                         color = line_source["props"][0]
