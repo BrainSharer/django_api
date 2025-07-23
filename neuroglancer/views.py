@@ -199,7 +199,7 @@ class NeuroglancerPublicViewSet(viewsets.ModelViewSet):
     It was more convienent to do them there than here.
     """
 
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.AllowAny]
     pagination_class = LimitOffsetPagination
     serializer_class = NeuroglancerNoStateSerializer
 
@@ -223,8 +223,8 @@ class NeuroglancerPrivateViewSet(viewsets.ModelViewSet):
     """
     A viewset for viewing and editing user instances.
     """
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-
+    #permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.AllowAny]
     serializer_class = NeuroglancerStateSerializer
     queryset = NeuroglancerState.objects.all()
 

@@ -90,7 +90,7 @@ class Parsedata:
                 if self.layer_type == "cloud":
                     self.fix_and_update_cloud_annotation_data(state.id, layer_id, self.debug)
                 if self.layer_type == "volume":
-                    self.fix_and_update_volume_annotation_data(state.id, layer_id, self.debug)
+                    self.fix_and_update_volume_annotation_data(state.id, layer_id, self.layer_name, self.debug)
 
     def show_annotations(self):
         if self.id > 0:
@@ -112,20 +112,40 @@ class Parsedata:
                     self.show_v1_cloud_annotations(layer)
                     self.show_v2_cloud_annotations(layer)
                 elif layer_type == 'volume':
-                    self.show_annotation_json(layer)
+                    self.show_annotation_json(layer, self.layer_name)
                 else:
                     print('Select either layer_type=cloud or volume')
 
     @staticmethod
-    def show_annotation_json(layer):
+    def show_annotation_json(layer, layer_name='annotation'):
         name = layer['name']
         annotations = layer['annotations']
-        print(f'Layer={name}')
         # type for v1 is either line or polygon
-        if name == 'annotation':
+        if name == layer_name:
+
             for annotation in annotations:
-                #print(f'Annotation type={annotation["type"]}')
-                print(f'Annotation {annotation}')
+                annotation_type = annotation.get('type')
+                parent_id = annotation.get('parentAnnotationId', 'XXXXX')
+                parent_id = parent_id[0:5] if isinstance(parent_id, str) else parent_id
+                child_ids = annotation.get('childAnnotationIds', [])
+                number_of_children = len(child_ids)
+                if len(child_ids) != 0:
+                    child_ids = [str(child_id[0:5]) for child_id in child_ids]
+                if annotation_type == 'volume':
+                    print(f'Annotation type={annotation_type}', end=' ')
+                    print(f'id={annotation.get("id")} description={annotation.get("description")}')
+                    print(f'# polygons={number_of_children} child IDS={child_ids[:5]}')
+                if annotation_type == 'polygon':
+                    print(f'\tAnnotation type={annotation_type} parentID={parent_id}', end=' ')
+                    print(f'\tid={annotation.get("id")} description={annotation.get("description")}')
+                    #print(f'child IDS={annotation.get("childAnnotationIds")}')
+                    print(f'\t# lines={number_of_children} child IDS={child_ids[:5]}')
+                if annotation_type == 'line':
+                    print(f'\t\tAnnotation type={annotation_type} parentID={parent_id}', end=' ')
+                    print(f'\t\tid={annotation.get("id")} description={annotation.get("description")}')
+        else:
+            print(f'Layer name={name} does not match layer_name={layer_name}, skipping ...')
+            return
                 
 
 
@@ -317,7 +337,7 @@ class Parsedata:
 
 
     @staticmethod
-    def fix_and_update_volume_annotation_data(neuroglancer_state_id, layer_id, debug):
+    def fix_and_update_volume_annotation_data(neuroglancer_state_id, layer_id, layer_name, debug):
         default_props = ["#ffff00", 1, 1, 5, 3, 1]
 
         state = NeuroglancerState.objects.get(pk=neuroglancer_state_id)
@@ -325,21 +345,25 @@ class Parsedata:
         existing_annotations = existing_state["layers"][layer_id]["annotations"]
 
         existing_name = existing_state["layers"][layer_id]["name"]
+        if layer_name is not None and existing_name != layer_name:
+            print(f"Layer name {existing_name} does not match provided layer_name {layer_name}, skipping ...")
+            return
+        
         if len(existing_annotations) == 0:
             print("No annotations found for", state.comments, existing_name)
             return
         
+        
         existing_state["layers"][layer_id]["annotations"] = []
         # descriptions are the labels
 
-        volume_id = f"{Parsedata.random_string()}"
-        points = []                
-
-        polygon_ids = [row['id'] for row in existing_annotations if "type" in row and row["type"] == "polygon"]
-        if len(polygon_ids) == 0:
+        #volume_id = f"{Parsedata.random_string()}"
+        volume_ids = [row['id'] for row in existing_annotations if "type" in row and row["type"] == "volume"]
+        if len(volume_ids) == 0:
             return
         else:
-            print(f"Found {len(polygon_ids)} polygons for {state.comments} layer name={existing_name}")
+            print(f"Found {len(volume_ids)} volumes with ID: {volume_ids}")
+
 
         if "props" in existing_annotations and "type" in existing_annotations and existing_annotations["type"] == "polygon":
             color = existing_annotations["props"][0]
@@ -353,65 +377,89 @@ class Parsedata:
         else:
             description = ""
 
-        polygons = [] 
+        points = []                
+        polygons = []
         lines = []
-        for i, polygon_id in enumerate(polygon_ids):
-            print(i, polygon_id)
-            
-            polygon = {}
-
-            lines_source = [row for row in existing_annotations if "parentAnnotationId" in row and row["parentAnnotationId"] == polygon_id]
-            line_ids = []
-            for line_source in lines_source:
-                pointA = line_source["pointA"]
-                pointB = line_source["pointB"]
-                points.append(pointA)
-                
-                if "props" in line_source and "type" in line_source and line_source["type"] == "line":
-                    color = line_source["props"][0]
-                    props = [f"{color}", 1, 1, 5, 3, 1]
-                else:
-                    props = default_props
-
-                line = {
-                    "pointA": pointA,
-                    "pointB": pointB, 
-                    "type": "line",
-                    "id": f"{Parsedata.random_string()}",
-                    "parentAnnotationId": f"{polygon_id}",
-                    "props": props
-                }
-                line_ids.append(line["id"])
-                lines.append(line)
-            polygon['source'] = lines[0]['pointA']
-            polygon["centroid"] = np.mean([line['pointA'] for line in lines], axis=0).tolist()
-            polygon['childAnnotationIds'] = line_ids
-            polygon['type'] = 'polygon'
-            polygon['id'] = f"{polygon_id}"
-            polygon['parentAnnotationId'] = f"{volume_id}"
-            polygon['props'] = props
-
-            polygons.append(polygon)
-
-
-        volume = {}
-        volume["source"] = points[0]
-        volume["centroid"] = np.mean(points, axis=0).tolist()
-        volume["childAnnotationIds"] = polygon_ids # random ids length of points
-        volume["childrenVisible"] = True
-        volume["type"] = "volume"
-        volume["id"] = f"{volume_id}"
-        volume["props"] = default_props
-        volume["description"] = f"{description}"
-
         reformatted_annotations = []
-        reformatted_annotations.append(volume)
-        reformatted_annotations.extend(polygons)
-        reformatted_annotations.extend(lines)
+
+        for volume_id in volume_ids:
+            polygon_ids = [row['childAnnotationIds'] for row in existing_annotations if "type" in row and row["type"] == "volume"
+                         and "childAnnotationIds" in row and row["id"] == volume_id][0]
+
+
+            print(f"\nVolume ID={volume_id} with {len(polygon_ids)} polygons")
+            for polygon_id in polygon_ids:
+                try:
+                    parent_id = [row['parentAnnotationId'] for row in existing_annotations if "type" in row and row["type"] == "polygon"
+                                and "parentAnnotationId" in row and row["parentAnnotationId"] == volume_id and row["id"] == polygon_id][0]
+                except IndexError:
+                    parent_id = 'NA'
+                line_ids = [row['childAnnotationIds'] for row in existing_annotations if "type" in row and row["type"] == "polygon"
+                            and "childAnnotationIds" in row and row["id"] == polygon_id][0]
+                print(f"\tPolygon ID={polygon_id[0:5]} parent={parent_id[0:5]} with {len(line_ids)} lines")
+                polygon = {}
+                lines_source = [row for row in existing_annotations if "type" in row and row["type"] == 'line'
+                                and "id" in row and row["id"] in line_ids]
+                for line_source in lines_source:
+                    pointA = line_source["pointA"]
+                    pointB = line_source["pointB"]
+                    points.append(pointA)
+                    print(f"\t\tLine parent:{line_source.get('parentAnnotationId', 'N/A')[0:5]}")
+                    
+                    if "props" in line_source and "type" in line_source and line_source["type"] == "line":
+                        color = line_source["props"][0]
+                        props = [f"{color}", 1, 1, 5, 3, 1]
+                    else:
+                        props = default_props
+
+                    line = {
+                        "pointA": pointA,
+                        "pointB": pointB, 
+                        "type": "line",
+                        "id": f"{Parsedata.random_string()}",
+                        "parentAnnotationId": f"{polygon_id}",
+                        "props": props
+                    }
+                    line_ids.append(line["id"])
+                    lines.append(line)
+                if len(lines) == 0:
+                    print(f"\tNo lines found for polygon {polygon_id}")
+                    continue
+                polygon['source'] = lines[0]['pointA']
+                polygon["centroid"] = np.mean([line['pointA'] for line in lines], axis=0).tolist()
+                polygon['childAnnotationIds'] = line_ids
+                polygon['type'] = 'polygon'
+                polygon['id'] = f"{polygon_id}"
+                polygon['parentAnnotationId'] = f"{volume_id}"
+                polygon['props'] = props
+
+                polygons.append(polygon)
+
+            if len(polygons) == 0:
+                print(f"No polygons found for volume={volume_id}")
+                continue
+            volume = {}
+            volume["source"] = points[0]
+            volume["centroid"] = np.mean(points, axis=0).tolist()
+            volume["childAnnotationIds"] = polygon_ids # random ids length of points
+            volume["childrenVisible"] = True
+            volume["type"] = "volume"
+            volume["id"] = f"{volume_id}"
+            volume["props"] = default_props
+            volume["description"] = f"{description}"
+
+            reformatted_annotations.append(volume)
+            reformatted_annotations.extend(polygons)
+            reformatted_annotations.extend(lines)
 
         existing_state["layers"][layer_id]["annotations"] += reformatted_annotations
         if debug:
-            print(polygons)
+            print("Reformatted Annotations:")
+            for i, row in enumerate(reformatted_annotations):
+                continue
+                # print(row)
+                if i > 2:
+                    break
 
         state.updated = datetime.datetime.now(datetime.timezone.utc)
         existing_state["layers"][layer_id]["tool"] = "annotateVolume"
@@ -427,7 +475,7 @@ class Parsedata:
     
     @staticmethod
     def random_string():
-        return "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
+        return "".join(random.choices(string.ascii_lowercase + string.digits, k=40))
 
     def parse_annotation(self):
         if self.id > 0:
@@ -511,8 +559,7 @@ if __name__ == '__main__':
     parser.add_argument('--id', help='Enter ID', required=False, default=0, type=int)
     parser.add_argument('--task', help='Enter task', required=True, type=str)
     parser.add_argument('--layer_name', help='Enter layer name', required=False, type=str)
-    parser.add_argument('--layer_type', help='Enter layer type', required=False, type=str)
-    
+    parser.add_argument('--layer_type', help='Enter layer type', required=False, type=str)    
     parser.add_argument('--debug', required=False, default='false', type=str)
 
     args = parser.parse_args()
