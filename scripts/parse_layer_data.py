@@ -377,18 +377,19 @@ class Parsedata:
         else:
             description = ""
 
-        points = []                
-        polygons = []
-        lines = []
+        points = []
+        all_volume_lines = []
+
         reformatted_annotations = []
 
         for volume_id in volume_ids:
+            polygons = []
             polygon_ids = [row['childAnnotationIds'] for row in existing_annotations if "type" in row and row["type"] == "volume"
                          and "childAnnotationIds" in row and row["id"] == volume_id][0]
 
-
+            #polygon_ids = ["764b5e172714de8c0dc5a78d0342861bfe6b14f6"]
             print(f"\nVolume ID={volume_id} with {len(polygon_ids)} polygons")
-            for polygon_id in polygon_ids:
+            for idx, polygon_id in enumerate(polygon_ids):
                 try:
                     parent_id = [row['parentAnnotationId'] for row in existing_annotations if "type" in row and row["type"] == "polygon"
                                 and "parentAnnotationId" in row and row["parentAnnotationId"] == volume_id and row["id"] == polygon_id][0]
@@ -398,12 +399,15 @@ class Parsedata:
                             and "childAnnotationIds" in row and row["id"] == polygon_id][0]
                 single_parents = set([row["parentAnnotationId"] for row in existing_annotations if "parentAnnotationId" in row and row["type"] == 'line'
                                 and "id" in row and row["id"] in line_ids])
-                print(f"\tPolygon ID={polygon_id[0:5]} parent={parent_id[0:5]} with {len(line_ids)} lines with line parentIDs={single_parents}")
                 
                 polygon = {}
+                # Get all the lines that are children of this polygon
                 lines_source = [row for row in existing_annotations if "type" in row and row["type"] == 'line'
-                                and "id" in row and row["id"] in line_ids]
+                                and "id" in row and row["id"] in line_ids and row["parentAnnotationId"] == polygon_id]
+                len_lines = len(lines_source)
+                polygon_lines = []
                 for line_source in lines_source:
+                    id = line_source.get("id", f"{Parsedata.random_string()}")
                     pointA = line_source["pointA"]
                     pointB = line_source["pointB"]
                     points.append(pointA)
@@ -418,28 +422,39 @@ class Parsedata:
                         "pointA": pointA,
                         "pointB": pointB, 
                         "type": "line",
-                        "id": f"{Parsedata.random_string()}",
+                        "id": f"{id}",
                         "parentAnnotationId": f"{polygon_id}",
                         "props": props
                     }
                     line_ids.append(line["id"])
-                    lines.append(line)
-                if len(lines) == 0:
+                    polygon_lines.append(line)
+                #print(f"\t\tFound {len(lines_source)} lines with sections={sorted(sections)}")
+                if len(polygon_lines) == 0:
                     print(f"\tNo lines found for polygon {polygon_id}")
                     continue
-                polygon['source'] = lines[0]['pointA']
-                polygon["centroid"] = np.mean([line['pointA'] for line in lines], axis=0).tolist()
+                polygon['source'] = polygon_lines[0]['pointA']
+                polygon["centroid"] = np.mean([line['pointA'] for line in polygon_lines], axis=0).tolist()
                 polygon['childAnnotationIds'] = line_ids
                 polygon['type'] = 'polygon'
                 polygon['id'] = f"{polygon_id}"
                 polygon['parentAnnotationId'] = f"{volume_id}"
                 polygon['props'] = props
+                all_volume_lines.extend(polygon_lines)
 
+                print(f"\n\t{idx=} Polygon ID={polygon_id[0:5]} parent volume={parent_id[0:5]} with {len_lines} lines with line parentIDs={single_parents}")
+                print(f"\tcentroid={polygon['centroid']}")
+                #for k,v in polygon.items():
+                #    print(k,v)
+                #for line in lines:
+                #    print(line['pointA'])
+    
                 polygons.append(polygon)
 
             if len(polygons) == 0:
                 print(f"No polygons found for volume={volume_id}")
                 continue
+            assert len(points) == len(all_volume_lines), f"Points {len(points)} and lines {len(all_volume_lines)} do not match for volume={volume_id}"
+            print(f"\nFound {len(polygons)} polygons, and unique polygon IDs={len(set(polygon_ids))} for volume={volume_id} with {len(points)} points and")
             volume = {}
             volume["source"] = points[0]
             volume["centroid"] = np.mean(points, axis=0).tolist()
@@ -452,14 +467,14 @@ class Parsedata:
 
             reformatted_annotations.append(volume)
             reformatted_annotations.extend(polygons)
-            reformatted_annotations.extend(lines)
+            reformatted_annotations.extend(all_volume_lines)
 
         existing_state["layers"][layer_id]["annotations"] += reformatted_annotations
         if debug:
             print("Reformatted Annotations:")
             for i, row in enumerate(reformatted_annotations):
                 continue
-                # print(row)
+                print(row)
                 if i > 2:
                     break
 
