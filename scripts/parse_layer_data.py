@@ -402,11 +402,11 @@ class Parsedata:
                 
                 polygon = {}
                 # Get all the lines that are children of this polygon
-                lines_source = [row for row in existing_annotations if "type" in row and row["type"] == 'line'
+                all_lines_in_polygon = [row for row in existing_annotations if "type" in row and row["type"] == 'line'
                                 and "id" in row and row["id"] in line_ids and row["parentAnnotationId"] == polygon_id]
-                len_lines = len(lines_source)
+                len_lines = len(all_lines_in_polygon)
                 polygon_lines = []
-                for line_source in lines_source:
+                for line_source in all_lines_in_polygon:
                     id = line_source.get("id", f"{Parsedata.random_string()}")
                     pointA = line_source["pointA"]
                     pointB = line_source["pointB"]
@@ -428,10 +428,8 @@ class Parsedata:
                     }
                     line_ids.append(line["id"])
                     polygon_lines.append(line)
-                #print(f"\t\tFound {len(lines_source)} lines with sections={sorted(sections)}")
-                if len(polygon_lines) == 0:
-                    print(f"\tNo lines found for polygon {polygon_id}")
-                    continue
+
+
                 polygon['source'] = polygon_lines[0]['pointA']
                 polygon["centroid"] = np.mean([line['pointA'] for line in polygon_lines], axis=0).tolist()
                 polygon['childAnnotationIds'] = line_ids
@@ -439,22 +437,38 @@ class Parsedata:
                 polygon['id'] = f"{polygon_id}"
                 polygon['parentAnnotationId'] = f"{volume_id}"
                 polygon['props'] = props
+                section  = int(polygon['centroid'][-1])
+                polygon['section'] = section
                 all_volume_lines.extend(polygon_lines)
-
                 print(f"\n\t{idx=} Polygon ID={polygon_id[0:5]} parent volume={parent_id[0:5]} with {len_lines} lines with line parentIDs={single_parents}")
-                print(f"\tcentroid={polygon['centroid']}")
-                #for k,v in polygon.items():
-                #    print(k,v)
-                #for line in lines:
-                #    print(line['pointA'])
+                print(f"\tcentroid={polygon['centroid']} int section={section}")
     
                 polygons.append(polygon)
+
+            key_for_uniqueness = "section"
+            seen_ids = set()
+            unique_list = []
+            print(f"Found {len(polygons)} polygons before removal")
+
+            for d in polygons:
+                if d[key_for_uniqueness] not in seen_ids:
+                    unique_list.append(d)
+                    seen_ids.add(d[key_for_uniqueness])                
+            polygons = unique_list
+            del unique_list
+            # now remove the section key from each polygon
+            for d in polygons:
+                del d['section']
+
+            print(f"Found {len(polygons)} polygons after removal")
+            polygon_ids = [polygon['id'] for polygon in polygons]
+
 
             if len(polygons) == 0:
                 print(f"No polygons found for volume={volume_id}")
                 continue
             assert len(points) == len(all_volume_lines), f"Points {len(points)} and lines {len(all_volume_lines)} do not match for volume={volume_id}"
-            print(f"\nFound {len(polygons)} polygons, and unique polygon IDs={len(set(polygon_ids))} for volume={volume_id} with {len(points)} points and")
+            print(f"\n\nFound {len(polygons)} polygons, and unique polygon IDs={len(set(polygon_ids))} for volume={volume_id} with {len(points)} points")
             volume = {}
             volume["source"] = points[0]
             volume["centroid"] = np.mean(points, axis=0).tolist()
