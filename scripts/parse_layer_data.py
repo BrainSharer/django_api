@@ -124,6 +124,8 @@ class Parsedata:
         if name == layer_name:
 
             for annotation in annotations:
+                print(annotation)
+                continue
                 annotation_type = annotation.get('type')
                 parent_id = annotation.get('parentAnnotationId', 'XXXXX')
                 parent_id = parent_id[0:5] if isinstance(parent_id, str) else parent_id
