@@ -397,15 +397,19 @@ class Parsedata:
                                 and "parentAnnotationId" in row and row["parentAnnotationId"] == volume_id and row["id"] == polygon_id][0]
                 except IndexError:
                     parent_id = 'NA'
-                line_ids = [row['childAnnotationIds'] for row in existing_annotations if "type" in row and row["type"] == "polygon"
-                            and "childAnnotationIds" in row and row["id"] == polygon_id][0]
+                line_ids = [row['id'] for row in existing_annotations if "type" in row and row["type"] == "line"
+                            and row["parentAnnotationId"] == polygon_id]
                 single_parents = set([row["parentAnnotationId"] for row in existing_annotations if "parentAnnotationId" in row and row["type"] == 'line'
                                 and "id" in row and row["id"] in line_ids])
                 
                 polygon = {}
                 # Get all the lines that are children of this polygon
+                #all_lines_in_polygon = [row for row in existing_annotations if "type" in row and row["type"] == 'line'
+                #                and "id" in row and row["id"] in line_ids and row["parentAnnotationId"] == polygon_id]
+
                 all_lines_in_polygon = [row for row in existing_annotations if "type" in row and row["type"] == 'line'
-                                and "id" in row and row["id"] in line_ids and row["parentAnnotationId"] == polygon_id]
+                                and "id" in row and row["id"] in line_ids]
+
                 len_lines = len(all_lines_in_polygon)
                 polygon_lines = []
                 for line_source in all_lines_in_polygon:
@@ -428,7 +432,6 @@ class Parsedata:
                         "parentAnnotationId": f"{polygon_id}",
                         "props": props
                     }
-                    line_ids.append(line["id"])
                     polygon_lines.append(line)
 
 
@@ -439,7 +442,7 @@ class Parsedata:
                 polygon['id'] = f"{polygon_id}"
                 polygon['parentAnnotationId'] = f"{volume_id}"
                 polygon['props'] = props
-                section  = int(polygon['centroid'][-1])
+                section = int(polygon['centroid'][-1])
                 polygon['section'] = section
                 all_volume_lines.extend(polygon_lines)
                 print(f"\n\t{idx=} Polygon ID={polygon_id[0:5]} parent volume={parent_id[0:5]} with {len_lines} lines with line parentIDs={single_parents}")
@@ -485,14 +488,12 @@ class Parsedata:
             reformatted_annotations.extend(polygons)
             reformatted_annotations.extend(all_volume_lines)
 
-        existing_state["layers"][layer_id]["annotations"] += reformatted_annotations
+        existing_state["layers"][layer_id]["annotations"] = reformatted_annotations
         if debug:
-            print("Reformatted Annotations:")
-            for i, row in enumerate(reformatted_annotations):
-                continue
-                print(row)
-                if i > 2:
-                    break
+            print("Reformatted ")
+            json_output = json.dumps(reformatted_annotations, indent=4)
+            #print(json_output)
+
 
         state.updated = datetime.datetime.now(datetime.timezone.utc)
         existing_state["layers"][layer_id]["tool"] = "annotateVolume"
