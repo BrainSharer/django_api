@@ -60,26 +60,6 @@ class NeuroglancerState(models.Model):
             first_name = self.owner.first_name
         return first_name
 
-    """
-    @property
-    def animal(self):
-        '''Find the animal within the url between data/ and /neuroglancer_data:
-        data/MD589/neuroglancer_data/C1
-        
-        :return: the first match if found, otherwise NA
-        '''
-        animal = "Allen"
-        pattern = 'data/(\w*)/neuroglancer_data'
-        neuroglancer_json = self.neuroglancer_state
-        image_layers = [layer for layer in neuroglancer_json['layers'] if layer['type'] == 'image']
-        if len(image_layers) > 0:
-            first_image_layer = json.dumps(image_layers[0])
-            match = re.search(pattern, first_image_layer)
-            if match is not None and match.group(1) is not None:
-                animal = match.group(1)
-
-        return animal
-    """
     @property
     def point_frame(self):
         df = None
@@ -130,7 +110,8 @@ class NeuroglancerState(models.Model):
                     name = layer['name']
                     annotations = layer['annotations']
                     ##### This is for the points
-                    point_ids = list(set(row["id"] for row in annotations if "id" in row and 'point' in row))
+                    point_ids = list(set(row["id"] for row in annotations if "id" in row 
+                                         and 'point' in row and "parentAnnotationId" not in row))
                     for point_id in point_ids:
                         points = [row['point'] for row in annotations if 'point' in row and "id" in row and row["id"] == point_id]
                         df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
@@ -158,29 +139,30 @@ class NeuroglancerState(models.Model):
                         dfs.append(df)
                     
                     ##### Finished with points
+                    cloud_parent_ids = list(set(row["id"] for row in annotations if "id" in row
+                                         and 'type' in row
+                                         and row['type'] == 'cloud'))
 
                     ##### This is for cloud points
-                    cloud_ids = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row
-                                         and 'type' in row
-                                         and row['type'] == 'point'))
-                    for parentId in cloud_ids:
-                        points = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == parentId]
+                    for cloud_parent_id in cloud_parent_ids:
+                        print(f'Processing cloud parent id: {cloud_parent_id}')
+                        points = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == cloud_parent_id]
                         df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
                         df['Section'] = df['Section'].astype(int)
                         df['Layer'] = name
                         df['Type'] = 'cloud point'
-                        df['UUID'] = parentId
+                        df['UUID'] = cloud_parent_id
                         df['Order'] = 0
                         df['Xum'] = df['X'] * xy_resolution
                         df['Yum'] = df['Y'] * xy_resolution
                         df['Zum'] = df['Section'] * z_resolution
                         descriptions = [row["description"] for row in annotations if "description" in row 
-                                              and 'type' in row 
-                                              and row['type'] == 'cloud'
-                                              and 'id' in row
-                                              and row['id'] == parentId]
+                                            and 'type' in row 
+                                            and row['type'] == 'cloud'
+                                            and 'id' in row
+                                            and row['id'] == cloud_parent_id]
                         if len(descriptions) == 0:
-                            descriptions = 'unlabeled point'
+                            descriptions = 'unlabeled cloud point'
                         else:
                             descriptions = descriptions[0].replace('\n', ', ')
 
