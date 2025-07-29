@@ -224,7 +224,6 @@ class NeuroglancerPrivateViewSet(viewsets.ModelViewSet):
     A viewset for viewing and editing user instances.
     """
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    #permission_classes = [permissions.AllowAny]
     serializer_class = NeuroglancerStateSerializer
     queryset = NeuroglancerState.objects.all()
 
