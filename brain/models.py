@@ -94,7 +94,8 @@ class Histology(AtlasModel):
     exsangination_method = EnumField(choices=['PBS','aCSF','Ringers'], blank=True, null=True)
     fixative_method = EnumField(choices=['Para','Glut','Post fix'], blank=True, null=True)
     special_perfusion_notes = models.CharField(max_length=200, blank=True, null=True)
-    post_fixation_period = models.PositiveIntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(255)])
+    post_fixation_period = models.PositiveIntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(255)], 
+                                                       verbose_name="Post fixation period (days)")
     whole_brain = models.CharField(max_length=1, blank=True, null=True)
     block = models.CharField(max_length=200, blank=True, null=True)
     date_sectioned = models.DateField(blank=True, null=True)
@@ -203,7 +204,7 @@ class ScanRun(AtlasModel):
     prep = models.OneToOneField(Animal, models.CASCADE, db_column='FK_prep_id')
     machine = EnumField(choices=['Axioscan I', 'Axioscan II', 'Nanozoomer'], blank=True, null=True)
     objective = EnumField(choices=['60X','40X','20X','10X'], blank=True, null=True)
-    resolution = models.FloatField(verbose_name="XY Resolution (µm)")
+    resolution = models.FloatField(verbose_name="XY Resolution (µm)", default=0.325)
     zresolution = models.FloatField(verbose_name="Z Resolution (µm)", default=20)
     number_of_slides = models.IntegerField(verbose_name="Slide count (0=autodetect)", default=0)
     scan_date = models.DateField(blank=True, null=True)

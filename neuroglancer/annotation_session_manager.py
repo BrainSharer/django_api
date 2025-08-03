@@ -16,6 +16,7 @@ from neuroglancer.models import DEBUG
 
 M_UM_SCALE = 1000000
 COLOR = 1
+ISOTROPIC = 10  # set volume to be isotropic @ 10um
 
 def get_label_ids(label: str):
 
@@ -111,10 +112,10 @@ class AnnotationSessionManager():
     A class that manages annotation sessions and provides methods for creating polygons and volumes.
 
     Attributes:
-        resolution (float): The resolution of the scan run.
+        xy_resolution (float): The resolution of the scan run.
         isotropic (int): The isotropic value for the volume.
         downsample_factor (float): The downsample factor for the volume.
-        zresolution (int): The z-resolution of the volume.
+        z_resolution (int): The z-resolution of the volume.
         label (str): The label associated with the annotation session.
         color (int): The color value associated with the label.
 
@@ -136,12 +137,11 @@ class AnnotationSessionManager():
     """
 
     def __init__(self, scan_run: ScanRun, label: str) -> None:
-        self.resolution = scan_run.resolution
-        self.isotropic = 10 # set volume to be isotropic @ 10um
-        self.downsample_factor = self.isotropic / self.resolution 
-        self.zresolution = self.isotropic
+        xy_resolution = scan_run.resolution
+        z_resolution = scan_run.zresolution
+        self.xy_resolution = xy_resolution * ISOTROPIC
+        self.z_resolution = z_resolution * ISOTROPIC
         self.label = label
-
         self.color = self.fetch_color_by_label(self.label)
 
     def create_polygons(self, data: dict):
@@ -151,7 +151,7 @@ class AnnotationSessionManager():
 
         Args:
             data (dict): The data containing polygon information.
-            self.resolution (float): The scale factor for x and y coordinates.
+            self.xy_resolution (float): The scale factor for x and y coordinates.
 
         Returns:
             dict: A dictionary containing the polygons grouped by section.
@@ -170,14 +170,14 @@ class AnnotationSessionManager():
             except KeyError:
                 return "No data. Check the data you are sending."
             x0,y0,z0 = lines[0]['pointA']
-            x0 = x0 * M_UM_SCALE / self.resolution / self.downsample_factor
-            y0 = y0 * M_UM_SCALE / self.resolution / self.downsample_factor
-            z0 = int(round(z0 * M_UM_SCALE / self.zresolution))
+            x0 = x0 * M_UM_SCALE / self.xy_resolution
+            y0 = y0 * M_UM_SCALE / self.xy_resolution
+            z0 = int(round(z0 * M_UM_SCALE / self.z_resolution))
             for line in lines:
                 x,y,z = line['pointA']
-                x = x * M_UM_SCALE / self.resolution / self.downsample_factor
-                y = y * M_UM_SCALE / self.resolution / self.downsample_factor
-                z = z * M_UM_SCALE / 10
+                x = x * M_UM_SCALE / self.xy_resolution
+                y = y * M_UM_SCALE / self.xy_resolution
+                z = z * M_UM_SCALE / self.z_resolution
                 xy = (x, y)
                 section = int(np.round(z))
                 polygons[section].append(xy)
@@ -299,9 +299,8 @@ class AnnotationSessionManager():
         output_dir = os.path.join(path, folder_name)
         if os.path.exists(folder_name):
             shutil.rmtree(folder_name)
-        self.resolution = self.resolution * 1000 * self.downsample_factor  # neuroglancer wants it in nm
-        self.zresolution = self.zresolution * 1000
-        scales = [int(self.resolution), int(self.resolution), int(self.zresolution)]
+        # Neuroglancer wants the scales in nanometers so we multiply by 1000
+        scales = [int(self.xy_resolution * 1000), int(self.xy_resolution * 1000), int(self.z_resolution * 1000)]
 
         maker = NgConverter(volume=volume, scales=scales, offset=offset)
         segment_properties = {self.color: label}

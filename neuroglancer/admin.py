@@ -122,6 +122,7 @@ class PointsAdmin(admin.ModelAdmin):
     search_fields = ['id', 'comments']
     list_filter = ['created', 'updated', 'readonly']
     exclude = ['neuroglancer_state']
+    list_per_page = 25  # Display 50 objects per page
 
     def open_neuroglancer(self, obj):
         """This method creates an HTML link that allows the user to access Neuroglancer"""
