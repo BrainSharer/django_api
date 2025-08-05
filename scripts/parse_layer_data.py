@@ -21,7 +21,7 @@ from brain.models import Animal
 from neuroglancer.models import NeuroglancerState, AnnotationSession
 
 class Parsedata:
-    def __init__(self, id=0, layer_name=None, layer_type=None, debug=False):
+    def __init__(self, id=None, layer_name=None, layer_type=None, debug=False):
         self.id = id
         self.layer_name = layer_name
         self.layer_type = layer_type
@@ -52,14 +52,10 @@ class Parsedata:
                     good_states += 1
                     animal_object = Animal.objects.get(pk=animal)
                     NeuroglancerState.objects.filter(pk=state.id).update(animal=animal_object, updated=state.updated)
-                    #state.animal = animal_object
-                    #state.updated = state.updated
-                    #state.save()
 
                 else:
                     print(f"\tAnimal not found in {state.comments} {state.id}")
                     NeuroglancerState.objects.filter(pk=state.id).update(readonly=True, updated=state.updated)
-                    #state.save()
                     bad_states += 1
         print(f"Total states {all_states} with {good_states} good and {bad_states} bad, bad+good={good_states+bad_states}")    
 
@@ -88,7 +84,7 @@ class Parsedata:
                 if self.layer_type == "cloud":
                     self.fix_and_update_cloud_annotation_data(state.id, layer_id, self.debug)
                 if self.layer_type == "volume":
-                    self.fix_and_update_volume_annotation_data(state.id, layer_id, self.layer_name, self.debug)
+                    self.fix_and_update_volume_annotation_data(state.id, layer_id)
 
     def show_annotations(self):
         if self.id > 0:
@@ -122,8 +118,6 @@ class Parsedata:
         if name == layer_name:
 
             for annotation in annotations:
-                print(annotation)
-                continue
                 annotation_type = annotation.get('type')
                 parent_id = annotation.get('parentAnnotationId', 'XXXXX')
                 parent_id = parent_id[0:5] if isinstance(parent_id, str) else parent_id
@@ -336,8 +330,8 @@ class Parsedata:
             print("Updated", state.comments, existing_name, len(reformatted_annotations))
 
 
-    
-    def fix_and_update_volume_annotation_data(self, neuroglancer_state_id, layer_id, layer_name, debug):
+
+    def fix_and_update_volume_annotation_data(self, neuroglancer_state_id, layer_id):
         default_props = ["#ffff00", 1, 1, 5, 3, 1]
 
         state = NeuroglancerState.objects.get(pk=neuroglancer_state_id)
@@ -345,8 +339,8 @@ class Parsedata:
         existing_annotations = existing_state["layers"][layer_id]["annotations"]
 
         existing_name = existing_state["layers"][layer_id]["name"]
-        if layer_name is not None and existing_name != layer_name:
-            print(f"Layer name {existing_name} does not match provided layer_name {layer_name}, skipping ...")
+        if self.layer_name is not None and existing_name != self.layer_name:
+            print(f"Layer name {existing_name} does not match provided layer_name {self.layer_name}, skipping ...")
             return
         
         if len(existing_annotations) == 0:
@@ -363,7 +357,7 @@ class Parsedata:
         if len(volume_ids) == 0:
             return
         else:
-            if debug and self.id > 0:
+            if self.debug and self.id > 0:
                 print(f"Found {len(volume_ids)} volumes with ID: {volume_ids}")
 
         if "props" in existing_annotations and "type" in existing_annotations and existing_annotations["type"] == "polygon":
@@ -404,11 +398,9 @@ class Parsedata:
                 
                 polygon = {}
                 # Get all the lines that are children of this polygon
-                #all_lines_in_polygon = [row for row in existing_annotations if "type" in row and row["type"] == 'line'
-                #                and "id" in row and row["id"] in line_ids and row["parentAnnotationId"] == polygon_id]
-
                 all_lines_in_polygon = [row for row in existing_annotations if "type" in row and row["type"] == 'line'
-                                and "id" in row and row["id"] in line_ids]
+                                and "id" in row and row["id"] in line_ids and row["parentAnnotationId"] == polygon_id]
+
 
                 len_lines = len(all_lines_in_polygon)
                 polygon_lines = []
@@ -447,16 +439,16 @@ class Parsedata:
                 section = int(polygon['centroid'][-1])
                 polygon['section'] = section
                 all_volume_lines.extend(polygon_lines)
-                if debug and self.id > 0:
-                    print(f"\n\t{idx=} Polygon ID={polygon_id[0:5]} parent volume={parent_id[0:5]} with {len_lines} lines with line parentIDs={single_parents}")
-                    print(f"\tcentroid={polygon['centroid']} int section={section}")
+                if self.debug:
+                        print(f"\n\t{idx=} Polygon ID={polygon_id[0:5]} parent volume={parent_id[0:5]} with {len_lines} lines with line parentIDs={single_parents}")
+                        print(f"\tcentroid={polygon['centroid']} int section={section}")
     
                 polygons.append(polygon)
 
             key_for_uniqueness = "section"
             seen_ids = set()
             unique_list = []
-            if debug and self.id > 0:
+            if self.debug and self.id > 0:
                 print(f"Found {len(polygons)} polygons before removal", end =' ')
 
             for d in polygons:
@@ -469,7 +461,7 @@ class Parsedata:
             for d in polygons:
                 del d['section']
 
-            if debug and self.id > 0:
+            if self.debug and self.id > 0:
                 print(f"and {len(polygons)} polygons after removal")
             polygon_ids = [polygon['id'] for polygon in polygons]
 
@@ -494,7 +486,8 @@ class Parsedata:
             reformatted_annotations.extend(all_volume_lines)
 
         existing_state["layers"][layer_id]["annotations"] = reformatted_annotations
-        if debug and self.id > 0:
+        if self.debug and self.id > 0:
+            pass
             print("Reformatted ")
             json_output = json.dumps(reformatted_annotations, indent=4)
             #print(json_output)
@@ -598,10 +591,11 @@ def create_json_header():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Work on Animal')
-    parser.add_argument('--id', help='Enter ID', required=False, default=0, type=int)
+    parser.add_argument('--id', help='Enter ID', required=False, default=None, type=int)
     parser.add_argument('--task', help='Enter task', required=True, type=str)
     parser.add_argument('--layer_name', help='Enter layer name', required=False, default=None, type=str)
-    parser.add_argument('--layer_type', help='Enter layer type', required=False, type=str)    
+    parser.add_argument('--layer_type', help='Enter layer type', required=False, type=str)   
+
     parser.add_argument('--debug', required=False, default='false', type=str)
 
     args = parser.parse_args()

@@ -113,7 +113,6 @@ class AnnotationSessionManager():
 
     Attributes:
         xy_resolution (float): The resolution of the scan run.
-        isotropic (int): The isotropic value for the volume.
         downsample_factor (float): The downsample factor for the volume.
         z_resolution (int): The z-resolution of the volume.
         label (str): The label associated with the annotation session.
