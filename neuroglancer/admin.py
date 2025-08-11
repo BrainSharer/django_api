@@ -14,10 +14,13 @@ from django.urls import reverse, path
 from django.template.response import TemplateResponse
 from plotly.offline import plot
 import plotly.express as px
+import pandas as pd
 
+from brain.models import ScanRun
 from brainsharer.admin_extensions import AtlasAdminModel, ExportCsvMixin
+from neuroglancer.annotation_session_manager import M_UM_SCALE
 from neuroglancer.models import AnnotationLabel, AnnotationSession, \
-    NeuroglancerState, Points, AnnotationData
+    NeuroglancerState, Points, AnnotationData, resort_points
 from neuroglancer.dash_view import dash_scatter_view
 
 
@@ -236,6 +239,9 @@ class PointsAdmin(admin.ModelAdmin):
 
 @admin.register(AnnotationData)
 class AnnotationDataAdmin(admin.ModelAdmin):
+    """This gets data from the annotation session table, not the JSON in the neuroglancer state table
+    """
+    
     list_display = ['id', 'animal', 'get_labels', 'get_data', 'annotation_type', 'annotator', 'created', 'updated']
     ordering = ['-created', 'annotator']
     list_filter = ['created', 'updated']
@@ -244,11 +250,9 @@ class AnnotationDataAdmin(admin.ModelAdmin):
     exclude = ['annotation']
 
     def get_data(self, obj):
-        len_points = get_points_in_session(obj.id)
         data_link = format_html(
-            '<a href="{}">Data {}</a>',
-            reverse('admin:exported-points-data', args=[obj.pk]),
-            len_points
+            '<a href="{}">Data</a>',
+            reverse('admin:exported-points-data', args=[obj.pk])
         )
         return data_link
     get_data.short_description = 'Data'
@@ -262,24 +266,140 @@ class AnnotationDataAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def view_points_data(self, request, id, *args, **kwargs):
+        import json
 
         annotation_session = AnnotationSession.objects.get(pk=id)
-        json_data = annotation_session.annotation
-        for k,v in json_data.items():
-            if 'childJsons' in k:
-                print(k,v)
+        annotations = annotation_session.annotation
+
+        #with open('/tmp/output.json', 'w') as json_file:
+        #    json.dump(annotations, json_file, indent=4) # Indent with 4 spaces for readability
+
+        dfs = []
+        result = None
+        annotation_type = annotations.get('type')
+        description = annotations.get('description')
+        scan_run = ScanRun.objects.filter(prep_id=annotation_session.animal).first()
+        xy_resolution = scan_run.resolution
+        z_resolution = scan_run.zresolution
+        if annotation_type == 'point':
+            point = annotations['point']
+            df = pd.DataFrame([point], columns=['Xm', 'Ym', 'Zm'])
+            df['X'] = df['Xm'] * M_UM_SCALE / xy_resolution
+            df['Y'] = df['Ym'] * M_UM_SCALE / xy_resolution
+            df['Section'] = df['Zm'] * M_UM_SCALE / z_resolution
+            df['Layer'] = 'Export'
+            df['Type'] = 'point'
+            df['UUID'] = 'point'
+            df['Order'] = 1
+            df['Labels'] = description
+            df['Xum'] = df['Xm'] * M_UM_SCALE
+            df['Yum'] = df['Ym'] * M_UM_SCALE
+            df['Zum'] = df['Zm'] * M_UM_SCALE
+
+            df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
+            dfs.append(df)
+
+        if annotation_type == 'cloud':
+            #print(annotations)
+            subclouds = annotations['childJsons']
+            print(f"len clouds = {len(subclouds)}")
+            points = [row['point'] for row in subclouds]
+            df = pd.DataFrame(points, columns=['Xm', 'Ym', 'Zm'])
+            df['X'] = df['Xm'] * M_UM_SCALE / xy_resolution
+            df['Y'] = df['Ym'] * M_UM_SCALE / xy_resolution
+            df['Section'] = df['Zm'] * M_UM_SCALE / z_resolution
+            df['Layer'] = 'Export'
+            df['Type'] = 'cloud'
+            df['UUID'] = subclouds[0]['parentAnnotationId']
+            df['Order'] = 1
+            df['Labels'] = description
+            df['Xum'] = df['Xm'] * M_UM_SCALE
+            df['Yum'] = df['Ym'] * M_UM_SCALE
+            df['Zum'] = df['Zm'] * M_UM_SCALE
+
+            df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
+            dfs.append(df)
+
+        if annotation_type == 'volume' and 'childJsons' in annotations:
+            polygons = annotations['childJsons']
+            print(f"len polygons = {len(polygons)}")
+            
+            for polygon in polygons:
+                lines = polygon['childJsons']
+                UUID = lines[0]['parentAnnotationId']
+
+                first = [round(x) for x in lines[0]['pointA']]
+                last = [round(x) for x in lines[-1]['pointB']]
+
+                if first != last:
+                    rows = resort_points(rows)
+
+                points = [row['pointA'] for row in lines]
+                orders = [o for o in range(1, len(points) + 1)]
+                df = pd.DataFrame(points, columns=['Xm', 'Ym', 'Zm'])
+                df['X'] = df['Xm'] * M_UM_SCALE / xy_resolution
+                df['Y'] = df['Ym'] * M_UM_SCALE / xy_resolution
+                df['Section'] = df['Zm'] * M_UM_SCALE / z_resolution
+                df['Layer'] = 'Export'
+                df['Type'] = 'volume'
+                df['UUID'] = UUID
+                df['Order'] = orders
+                df['Labels'] = description
+                df['Xum'] = df['Xm'] * M_UM_SCALE
+                df['Yum'] = df['Ym'] * M_UM_SCALE
+                df['Zum'] = df['Zm'] * M_UM_SCALE
+
+                df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
+                dfs.append(df)
+
+        if annotation_type == 'polygon' and 'childJsons' in annotations:
+            polygons = annotations['childJsons']
+            print(f"len polygons = {len(polygons)}")
+        
+            lines = annotations['childJsons']
+            UUID = lines[0]['parentAnnotationId']
+
+            first = [round(x) for x in lines[0]['pointA']]
+            last = [round(x) for x in lines[-1]['pointB']]
+
+            if first != last:
+                rows = resort_points(rows)
+
+            points = [row['pointA'] for row in lines]
+            orders = [o for o in range(1, len(points) + 1)]
+            df = pd.DataFrame(points, columns=['Xm', 'Ym', 'Zm'])
+            df['X'] = df['Xm'] * M_UM_SCALE / xy_resolution
+            df['Y'] = df['Ym'] * M_UM_SCALE / xy_resolution
+            df['Section'] = df['Zm'] * M_UM_SCALE / z_resolution
+            df['Layer'] = 'Export'
+            df['Type'] = 'volume'
+            df['UUID'] = UUID
+            df['Order'] = orders
+            df['Labels'] = description
+            df['Xum'] = df['Xm'] * M_UM_SCALE
+            df['Yum'] = df['Ym'] * M_UM_SCALE
+            df['Zum'] = df['Zm'] * M_UM_SCALE
+
+            df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
+            dfs.append(df)
+
+        if len(dfs) == 0:
+            result = None
+        elif len(dfs) == 1:
+            result = dfs[0]
+        else:
+            result = pd.concat(dfs)
 
 
-        df = None
-        result = 'No data'
         display = False
-        if df is not None and len(df) > 0:
+        if result is not None:
+            result.sort_values(by=['Layer', 'Type', 'Labels', 'UUID', 'Section', 'Order', 'X', 'Y'], inplace=True)
             display = True
-            result = df.to_html(
+            result = result.to_html(
                 index=False, classes='table table-striped table-bordered', table_id='tab')
         context = dict(
             self.admin_site.each_context(request),
-            title="",
+            title= f"Exported data for annotation session ID={annotation_session.id}",
             chart=result,
             display=display,
             opts=AnnotationData._meta,

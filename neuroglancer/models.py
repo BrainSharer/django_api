@@ -71,23 +71,6 @@ class NeuroglancerState(models.Model):
                 df = df.round(decimals=0)
         return df
 
-    @staticmethod
-    def resort_points(rows):
-        """Reorders a list of dictionaries based on the previous value of a specified key."""
-
-        if not rows:
-            return rows
-
-        result = [rows[0]]  # Start with the first dictionary
-        for i in range(1, len(rows)):
-            for j in range(i):
-                if rows[i]['pointA'] == result[j]['pointB']:
-                    result.insert(j + 1, rows[i])
-                    break
-            else:
-                result.append(rows[i])
-
-        return result
 
 
     @property
@@ -138,12 +121,12 @@ class NeuroglancerState(models.Model):
                         df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
                         dfs.append(df)
                     
-                    ##### Finished with points
+                    ##### Finished with non cloud points
+                    ##### This is for cloud points
                     cloud_parent_ids = list(set(row["id"] for row in annotations if "id" in row
                                          and 'type' in row
                                          and row['type'] == 'cloud'))
 
-                    ##### This is for cloud points
                     for cloud_parent_id in cloud_parent_ids:
                         print(f'Processing cloud parent id: {cloud_parent_id}')
                         points = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == cloud_parent_id]
@@ -192,23 +175,20 @@ class NeuroglancerState(models.Model):
                             descriptions = descriptions[0].replace('\n', ', ')
                         
                         for polygon_id in polygon_ids:
-                            rows = [
-                                row
-                                for row in annotations
+                            lines = [row for row in annotations
                                 if "pointA" in row
                                 and "type" in row
                                 and row["type"] == "line"
                                 and "parentAnnotationId" in row
                                 and row["parentAnnotationId"] == polygon_id
                             ]
-                            first = [round(x) for x in rows[0]['pointA']]
-                            last = [round(x) for x in rows[-1]['pointB']] 
+                            first = [round(x) for x in lines[0]['pointA']]
+                            last = [round(x) for x in lines[-1]['pointB']] 
 
                             if first != last:
-                                rows = self.resort_points(rows)
+                                lines = resort_points(lines)
 
-                 
-                            points = [row['pointA'] for row in rows]
+                            points = [row['pointA'] for row in lines]
                             orders = [o for o in range(1, len(points) + 1)]
                             df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
                             df['Section'] = df['Section'].astype(int)
@@ -395,3 +375,20 @@ class Points(NeuroglancerState):
         proxy = True
         verbose_name = 'Layer points/polygons'
         verbose_name_plural = 'Layer points/polygons'
+
+def resort_points(rows):
+    """Reorders a list of dictionaries based on the previous value of a specified key."""
+
+    if not rows:
+        return rows
+
+    result = [rows[0]]  # Start with the first dictionary
+    for i in range(1, len(rows)):
+        for j in range(i):
+            if rows[i]['pointA'] == result[j]['pointB']:
+                result.insert(j + 1, rows[i])
+                break
+        else:
+            result.append(rows[i])
+
+    return result
