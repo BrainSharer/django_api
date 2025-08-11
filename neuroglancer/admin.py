@@ -236,12 +236,57 @@ class PointsAdmin(admin.ModelAdmin):
 
 @admin.register(AnnotationData)
 class AnnotationDataAdmin(admin.ModelAdmin):
-    list_display = ['id', 'animal', 'get_labels', 'annotation_type', 'annotator', 'created', 'updated']
+    list_display = ['id', 'animal', 'get_labels', 'get_data', 'annotation_type', 'annotator', 'created', 'updated']
     ordering = ['-created', 'annotator']
     list_filter = ['created', 'updated']
     search_fields = ['animal__prep_id', 'annotator__first_name', 'labels__label']
     readonly_fields = ['created', 'updated']
     exclude = ['annotation']
+
+    def get_data(self, obj):
+        len_points = get_points_in_session(obj.id)
+        data_link = format_html(
+            '<a href="{}">Data {}</a>',
+            reverse('admin:exported-points-data', args=[obj.pk]),
+            len_points
+        )
+        return data_link
+    get_data.short_description = 'Data'
+
+    def get_urls(self):
+        """Shows the HTML of the links to go to the graph, and table data."""
+        urls = super().get_urls()
+        custom_urls = [
+            path('exported-points-data/<id>', self.view_points_data, name='exported-points-data'),
+        ]
+        return custom_urls + urls
+
+    def view_points_data(self, request, id, *args, **kwargs):
+
+        annotation_session = AnnotationSession.objects.get(pk=id)
+        json_data = annotation_session.annotation
+        for k,v in json_data.items():
+            if 'childJsons' in k:
+                print(k,v)
+
+
+        df = None
+        result = 'No data'
+        display = False
+        if df is not None and len(df) > 0:
+            display = True
+            result = df.to_html(
+                index=False, classes='table table-striped table-bordered', table_id='tab')
+        context = dict(
+            self.admin_site.each_context(request),
+            title="",
+            chart=result,
+            display=display,
+            opts=AnnotationData._meta,
+        )
+        return TemplateResponse(request, "admin/neuroglancer/points_table.html", context)
+
+
 
     def get_labels(self, obj):
         # for the many to many case 
