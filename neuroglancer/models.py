@@ -95,29 +95,18 @@ class NeuroglancerState(models.Model):
                     ##### This is for the points
                     point_ids = list(set(row["id"] for row in annotations if "id" in row 
                                          and 'point' in row and "parentAnnotationId" not in row))
-                    for point_id in point_ids:
-                        points = [row['point'] for row in annotations if 'point' in row and "id" in row and row["id"] == point_id]
-                        df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
-                        df['Section'] = df['Section'].astype(int)
-                        df['Layer'] = name
-                        df['Type'] = 'point'
-                        df['UUID'] = point_id
-                        df['Order'] = 0
-                        df['Xum'] = df['X'] * xy_resolution
-                        df['Yum'] = df['Y'] * xy_resolution
-                        df['Zum'] = df['Section'] * z_resolution
-
+                    for UUID in point_ids:
+                        points = [row['point'] for row in annotations if 'point' in row and "id" in row and row["id"] == UUID]
                         descriptions = [row["description"] for row in annotations if "description" in row 
                                               and 'type' in row 
                                               and row['type'] == 'point'
                                               and 'id' in row
-                                              and row['id'] == point_id]
+                                              and row['id'] == UUID]
                         if len(descriptions) == 0:
                             descriptions = 'unlabeled point'
                         else:
                             descriptions = descriptions[0].replace('\n', ', ')
-                        
-                        df['Labels'] = descriptions
+                        df = create_one_dataframe(points, name, UUID, 'point', 0, descriptions, xy_resolution, z_resolution)
                         df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
                         dfs.append(df)
                     
@@ -127,29 +116,18 @@ class NeuroglancerState(models.Model):
                                          and 'type' in row
                                          and row['type'] == 'cloud'))
 
-                    for cloud_parent_id in cloud_parent_ids:
-                        print(f'Processing cloud parent id: {cloud_parent_id}')
-                        points = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == cloud_parent_id]
-                        df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
-                        df['Section'] = df['Section'].astype(int)
-                        df['Layer'] = name
-                        df['Type'] = 'cloud point'
-                        df['UUID'] = cloud_parent_id
-                        df['Order'] = 0
-                        df['Xum'] = df['X'] * xy_resolution
-                        df['Yum'] = df['Y'] * xy_resolution
-                        df['Zum'] = df['Section'] * z_resolution
+                    for UUID in cloud_parent_ids:
                         descriptions = [row["description"] for row in annotations if "description" in row 
                                             and 'type' in row 
                                             and row['type'] == 'cloud'
                                             and 'id' in row
-                                            and row['id'] == cloud_parent_id]
+                                            and row['id'] == UUID]
                         if len(descriptions) == 0:
                             descriptions = 'unlabeled cloud point'
                         else:
                             descriptions = descriptions[0].replace('\n', ', ')
-
-                        df['Labels'] = descriptions
+                        points = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == UUID]
+                        df = create_one_dataframe(points, name, UUID, 'cloud', 0, descriptions, xy_resolution, z_resolution)
                         df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
                         dfs.append(df)
                     ##### Finished with cloud points
@@ -174,13 +152,13 @@ class NeuroglancerState(models.Model):
                         else:
                             descriptions = descriptions[0].replace('\n', ', ')
                         
-                        for polygon_id in polygon_ids:
+                        for UUID in polygon_ids:
                             lines = [row for row in annotations
                                 if "pointA" in row
                                 and "type" in row
                                 and row["type"] == "line"
                                 and "parentAnnotationId" in row
-                                and row["parentAnnotationId"] == polygon_id
+                                and row["parentAnnotationId"] == UUID
                             ]
                             first = [round(x) for x in lines[0]['pointA']]
                             last = [round(x) for x in lines[-1]['pointB']] 
@@ -190,17 +168,7 @@ class NeuroglancerState(models.Model):
 
                             points = [row['pointA'] for row in lines]
                             orders = [o for o in range(1, len(points) + 1)]
-                            df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
-                            df['Section'] = df['Section'].astype(int)
-                            df['Layer'] = name
-                            df['Type'] = 'volume'
-                            df['UUID'] = volume_id
-                            df['Order'] = orders
-                            df['Labels'] = descriptions
-                            df['Xum'] = df['X'] * xy_resolution
-                            df['Yum'] = df['Y'] * xy_resolution
-                            df['Zum'] = df['Section'] * z_resolution
-
+                            df = create_one_dataframe(points, name, UUID, 'volume', orders, descriptions, xy_resolution, z_resolution)
                             df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
                             dfs.append(df)
 
@@ -392,3 +360,16 @@ def resort_points(rows):
             result.append(rows[i])
 
     return result
+
+def create_one_dataframe(points, name, UUID, data_type='point', orders=0, descriptions="", xy_resolution=1, z_resolution=1):
+    df = pd.DataFrame(points, columns=['X', 'Y', 'Section'])
+    df['Section'] = df['Section'].astype(int)
+    df['Layer'] = name
+    df['Type'] = data_type
+    df['UUID'] = UUID
+    df['Order'] = orders
+    df['Labels'] = descriptions
+    df['Xum'] = df['X'] * xy_resolution
+    df['Yum'] = df['Y'] * xy_resolution
+    df['Zum'] = df['Section'] * z_resolution
+    return df

@@ -266,13 +266,10 @@ class AnnotationDataAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def view_points_data(self, request, id, *args, **kwargs):
-        import json
 
         annotation_session = AnnotationSession.objects.get(pk=id)
         annotations = annotation_session.annotation
 
-        #with open('/tmp/output.json', 'w') as json_file:
-        #    json.dump(annotations, json_file, indent=4) # Indent with 4 spaces for readability
 
         dfs = []
         result = None
@@ -282,41 +279,19 @@ class AnnotationDataAdmin(admin.ModelAdmin):
         xy_resolution = scan_run.resolution
         z_resolution = scan_run.zresolution
         if annotation_type == 'point':
-            point = annotations['point']
-            df = pd.DataFrame([point], columns=['Xm', 'Ym', 'Zm'])
-            df['X'] = df['Xm'] * M_UM_SCALE / xy_resolution
-            df['Y'] = df['Ym'] * M_UM_SCALE / xy_resolution
-            df['Section'] = df['Zm'] * M_UM_SCALE / z_resolution
-            df['Layer'] = 'Export'
-            df['Type'] = 'point'
-            df['UUID'] = 'point'
-            df['Order'] = 1
-            df['Labels'] = description
-            df['Xum'] = df['Xm'] * M_UM_SCALE
-            df['Yum'] = df['Ym'] * M_UM_SCALE
-            df['Zum'] = df['Zm'] * M_UM_SCALE
-
+            points = [annotations['point']]
+            df = create_one_dataframe(points, 'point', annotation_type='point', orders=0, description=description, 
+                                        xy_resolution=xy_resolution, z_resolution=z_resolution)
             df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
             dfs.append(df)
 
         if annotation_type == 'cloud':
-            #print(annotations)
             subclouds = annotations['childJsons']
             print(f"len clouds = {len(subclouds)}")
             points = [row['point'] for row in subclouds]
-            df = pd.DataFrame(points, columns=['Xm', 'Ym', 'Zm'])
-            df['X'] = df['Xm'] * M_UM_SCALE / xy_resolution
-            df['Y'] = df['Ym'] * M_UM_SCALE / xy_resolution
-            df['Section'] = df['Zm'] * M_UM_SCALE / z_resolution
-            df['Layer'] = 'Export'
-            df['Type'] = 'cloud'
-            df['UUID'] = subclouds[0]['parentAnnotationId']
-            df['Order'] = 1
-            df['Labels'] = description
-            df['Xum'] = df['Xm'] * M_UM_SCALE
-            df['Yum'] = df['Ym'] * M_UM_SCALE
-            df['Zum'] = df['Zm'] * M_UM_SCALE
-
+            UUID = subclouds[0]['parentAnnotationId']
+            df = create_one_dataframe(points, UUID, annotation_type='cloud', orders=0, description=description, 
+                                        xy_resolution=xy_resolution, z_resolution=z_resolution)
             df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
             dfs.append(df)
 
@@ -336,25 +311,13 @@ class AnnotationDataAdmin(admin.ModelAdmin):
 
                 points = [row['pointA'] for row in lines]
                 orders = [o for o in range(1, len(points) + 1)]
-                df = pd.DataFrame(points, columns=['Xm', 'Ym', 'Zm'])
-                df['X'] = df['Xm'] * M_UM_SCALE / xy_resolution
-                df['Y'] = df['Ym'] * M_UM_SCALE / xy_resolution
-                df['Section'] = df['Zm'] * M_UM_SCALE / z_resolution
-                df['Layer'] = 'Export'
-                df['Type'] = 'volume'
-                df['UUID'] = UUID
-                df['Order'] = orders
-                df['Labels'] = description
-                df['Xum'] = df['Xm'] * M_UM_SCALE
-                df['Yum'] = df['Ym'] * M_UM_SCALE
-                df['Zum'] = df['Zm'] * M_UM_SCALE
-
+                df = create_one_dataframe(points, UUID, annotation_type='volume', orders=orders, description=description, 
+                                          xy_resolution=xy_resolution, z_resolution=z_resolution)
                 df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
                 dfs.append(df)
 
         if annotation_type == 'polygon' and 'childJsons' in annotations:
             polygons = annotations['childJsons']
-            print(f"len polygons = {len(polygons)}")
         
             lines = annotations['childJsons']
             UUID = lines[0]['parentAnnotationId']
@@ -367,19 +330,9 @@ class AnnotationDataAdmin(admin.ModelAdmin):
 
             points = [row['pointA'] for row in lines]
             orders = [o for o in range(1, len(points) + 1)]
-            df = pd.DataFrame(points, columns=['Xm', 'Ym', 'Zm'])
-            df['X'] = df['Xm'] * M_UM_SCALE / xy_resolution
-            df['Y'] = df['Ym'] * M_UM_SCALE / xy_resolution
-            df['Section'] = df['Zm'] * M_UM_SCALE / z_resolution
-            df['Layer'] = 'Export'
-            df['Type'] = 'volume'
-            df['UUID'] = UUID
-            df['Order'] = orders
-            df['Labels'] = description
-            df['Xum'] = df['Xm'] * M_UM_SCALE
-            df['Yum'] = df['Ym'] * M_UM_SCALE
-            df['Zum'] = df['Zm'] * M_UM_SCALE
-
+            df = create_one_dataframe(points, UUID, annotation_type='polygon', 
+                                      orders=orders, description=description, 
+                                      xy_resolution=xy_resolution, z_resolution=z_resolution)
             df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
             dfs.append(df)
 
@@ -441,3 +394,18 @@ class AnnotationLabelAdmin(AtlasAdminModel, ExportCsvMixin):
         return datetime_format(obj.created)
     created_display.short_description = 'Created'
 
+
+def create_one_dataframe(points, UUID, annotation_type='point', orders=0, description="", xy_resolution=1, z_resolution=1):
+    df = pd.DataFrame(points, columns=['Xm', 'Ym', 'Zm'])
+    df['X'] = df['Xm'] * M_UM_SCALE / xy_resolution
+    df['Y'] = df['Ym'] * M_UM_SCALE / xy_resolution
+    df['Section'] = df['Zm'] * M_UM_SCALE / z_resolution
+    df['Layer'] = 'Export'
+    df['Type'] = annotation_type
+    df['UUID'] = UUID
+    df['Order'] = orders
+    df['Labels'] = description
+    df['Xum'] = df['Xm'] * M_UM_SCALE
+    df['Yum'] = df['Ym'] * M_UM_SCALE
+    df['Zum'] = df['Zm'] * M_UM_SCALE
+    return df
