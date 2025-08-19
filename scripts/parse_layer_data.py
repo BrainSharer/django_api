@@ -9,7 +9,6 @@ from pathlib import Path
 import django
 import datetime
 import numpy as np
-from sqlalchemy import all_
 
 PATH = Path('.').absolute().as_posix()
 sys.path.append(PATH)
