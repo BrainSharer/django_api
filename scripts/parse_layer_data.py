@@ -9,6 +9,7 @@ from pathlib import Path
 import django
 import datetime
 import numpy as np
+from sqlalchemy import all_
 
 PATH = Path('.').absolute().as_posix()
 sys.path.append(PATH)
@@ -331,6 +332,7 @@ class Parsedata:
 
 
 
+
     def fix_and_update_volume_annotation_data(self, neuroglancer_state_id, layer_id):
         default_props = ["#ffff00", 1, 1, 5, 3, 1]
 
@@ -340,12 +342,11 @@ class Parsedata:
 
         existing_name = existing_state["layers"][layer_id]["name"]
         if self.layer_name is not None and existing_name != self.layer_name:
-            print(f"Layer name {existing_name} does not match provided layer_name {self.layer_name}, skipping ...")
             return
         
         if len(existing_annotations) == 0:
             if self.id > 0:
-                print("No annotations found for", state.comments, existing_name)
+                print("No annotations found for", state.comments, existing_name, layer_id)
             return
         
         
@@ -358,7 +359,7 @@ class Parsedata:
             return
         else:
             if self.debug and self.id > 0:
-                print(f"Found {len(volume_ids)} volumes with ID: {volume_ids}")
+                print(f"Found {len(volume_ids)} volumes with ID: {volume_ids}\n")
 
         if "props" in existing_annotations and "type" in existing_annotations and existing_annotations["type"] == "polygon":
             color = existing_annotations["props"][0]
@@ -374,35 +375,25 @@ class Parsedata:
 
         points = []
         all_volume_lines = []
-
         reformatted_annotations = []
-
         errors = []
+        PID = "parentAnnotationId" # avoid spelling mistakes
 
         for volume_id in volume_ids:
             polygons = []
             polygon_ids = [row['childAnnotationIds'] for row in existing_annotations if "type" in row and row["type"] == "volume"
                          and "childAnnotationIds" in row and row["id"] == volume_id][0]
-
-            #polygon_ids = ["764b5e172714de8c0dc5a78d0342861bfe6b14f6"]
             for idx, polygon_id in enumerate(polygon_ids):
-                try:
-                    parent_id = [row['parentAnnotationId'] for row in existing_annotations if "type" in row and row["type"] == "polygon"
-                                and "parentAnnotationId" in row and row["parentAnnotationId"] == volume_id and row["id"] == polygon_id][0]
-                except IndexError:
-                    parent_id = 'NA'
-                line_ids = [row['id'] for row in existing_annotations if "type" in row and row["type"] == "line"
-                            and "parentAnnotationId" in row and row["parentAnnotationId"] == polygon_id]
-                single_parents = set([row["parentAnnotationId"] for row in existing_annotations if "parentAnnotationId" in row and row["type"] == 'line'
-                                and "id" in row and row["id"] in line_ids])
-                
-                polygon = {}
+                line_ids = [row['childAnnotationIds'] for row in existing_annotations 
+                               if "type" in row 
+                                and row["type"] == "polygon"
+                                and "childAnnotationIds" in row
+                                and row["id"] == polygon_id][0]
                 # Get all the lines that are children of this polygon
                 all_lines_in_polygon = [row for row in existing_annotations if "type" in row and row["type"] == 'line'
-                                and "id" in row and row["id"] in line_ids and row["parentAnnotationId"] == polygon_id]
+                                and row['id'] in line_ids]            
 
-
-                len_lines = len(all_lines_in_polygon)
+                assert len(all_lines_in_polygon) == len(line_ids), f"Line IDs do not match for polygon {polygon_id}"
                 polygon_lines = []
                 for line_source in all_lines_in_polygon:
                     id = line_source.get("id", f"{Parsedata.random_string()}")
@@ -427,8 +418,9 @@ class Parsedata:
                     polygon_lines.append(line)
 
                 if len(polygon_lines) == 0:
-                    errors.append(f"No lines found for {state.id}")
+                    errors.append(f"No lines found for {state.id} in polygon={polygon_id}")
                     continue
+                polygon = {}
                 polygon['source'] = polygon_lines[0]['pointA']
                 polygon["centroid"] = np.mean([line['pointA'] for line in polygon_lines], axis=0).tolist()
                 polygon['childAnnotationIds'] = line_ids
@@ -440,11 +432,10 @@ class Parsedata:
                 polygon['section'] = section
                 all_volume_lines.extend(polygon_lines)
                 if self.debug:
-                        print(f"\n\t{idx=} Polygon ID={polygon_id[0:5]} parent volume={parent_id[0:5]} with {len_lines} lines with line parentIDs={single_parents}")
+                        print(f"\n\t{idx=} Polygon ID={polygon_id[0:5]} with {len(line_ids)} lines")
                         print(f"\tcentroid={polygon['centroid']} int section={section}")
     
                 polygons.append(polygon)
-
             key_for_uniqueness = "section"
             seen_ids = set()
             unique_list = []
@@ -490,7 +481,8 @@ class Parsedata:
             pass
             print("Reformatted ")
             json_output = json.dumps(reformatted_annotations, indent=4)
-            #print(json_output)
+            print(json_output)
+            return
 
 
         state.updated = datetime.datetime.now(datetime.timezone.utc)

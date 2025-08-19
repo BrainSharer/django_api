@@ -408,5 +408,5 @@ def create_one_dataframe(points, UUID, annotation_type='point', orders=0, descri
     df['Xum'] = df['Xm'] * M_UM_SCALE
     df['Yum'] = df['Ym'] * M_UM_SCALE
     df['Zum'] = df['Zm'] * M_UM_SCALE
-    df['Section'] = df['Section'].round(0).astype(int)
+    df['Section'] = df['Section'].round(1).astype(int)
     return df
