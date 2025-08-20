@@ -89,12 +89,12 @@ class Histology(AtlasModel):
     virus = models.ForeignKey('Virus', models.CASCADE, blank=True, null=True, db_column='FK_virus_id')
     performance_center = models.ForeignKey(Lab, models.CASCADE, null=True, blank=True, db_column="FK_lab_id", verbose_name="Performance Center")
     anesthesia = EnumField(choices=['ketamine','isoflurane','pentobarbital','fatal plus'], blank=True, null=True)
-    perfusion_age_in_days = models.PositiveIntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(255)])
+    perfusion_age_in_days = models.PositiveIntegerField(blank=False, null=False, default=0, validators=[MinValueValidator(0), MaxValueValidator(255)])
     perfusion_date = models.DateField(blank=True, null=True)
     exsangination_method = EnumField(choices=['PBS','aCSF','Ringers'], blank=True, null=True)
     fixative_method = EnumField(choices=['Para','Glut','Post fix'], blank=True, null=True)
     special_perfusion_notes = models.CharField(max_length=200, blank=True, null=True)
-    post_fixation_period = models.PositiveIntegerField(blank=True, null=True, validators=[MinValueValidator(0), MaxValueValidator(255)], 
+    post_fixation_period = models.PositiveIntegerField(blank=False, null=False, default=0, validators=[MinValueValidator(0), MaxValueValidator(255)], 
                                                        verbose_name="Post fixation period (days)")
     whole_brain = models.CharField(max_length=1, blank=True, null=True)
     block = models.CharField(max_length=200, blank=True, null=True)
