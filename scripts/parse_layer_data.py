@@ -72,6 +72,7 @@ class Parsedata:
             # ids = [586,593,651,658,669,682,688,704,804,623,610,727,774,785,800,755,772,784,802]
             # Polygon IDs that need to be updated
             ids = [758, 761, 966, 679, 1005, 1007]
+            ids = [0]
 
             states = NeuroglancerState.objects.exclude(pk__in=ids).order_by('id').filter(active=True).all()
         for state in states:
