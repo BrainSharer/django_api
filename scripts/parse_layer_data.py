@@ -23,9 +23,10 @@ from neuroglancer.models import NeuroglancerState, AnnotationSession
 PID = "parentAnnotationId" # avoid spelling mistakes
 
 class Parsedata:
-    def __init__(self, id=None, layer_type=None, debug=False):
+    def __init__(self, id=None, layer_type=None, layer_name=None, debug=False):
         self.id = id
         self.layer_type = layer_type
+        self.layer_name = layer_name
         self.debug = debug
 
     def update_neuroglancer_state_animal(self):
@@ -83,7 +84,7 @@ class Parsedata:
 
             for layer_id in layer_ids_to_update:
                 if self.layer_type == "cloud":
-                    self.fix_and_update_cloud_annotation_data(state.id, layer_id, self.debug)
+                    self.fix_and_update_cloud_annotation_data(state.id, layer_id, self.layer_name, self.debug)
                 if self.layer_type == "volume":
                     self.fix_and_update_volume_annotation_data(state.id, layer_id)
 
@@ -228,9 +229,8 @@ class Parsedata:
 
 
     @staticmethod
-    def fix_and_update_cloud_annotation_data(neuroglancer_state_id, layer_id, debug):
-        print("Creating new annotation data for layer", layer_id)
-        default_props = ["#ffff00", 1, 1, 5, 3, 1]
+    def fix_and_update_cloud_annotation_data(neuroglancer_state_id, layer_id, layer_name, debug):
+        default_props = ["#00ff00", 1, 1, 5, 3, 1]
 
         state = NeuroglancerState.objects.get(pk=neuroglancer_state_id)
         existing_state = state.neuroglancer_state
@@ -238,58 +238,54 @@ class Parsedata:
 
         existing_name = existing_state["layers"][layer_id]["name"]
         if len(existing_annotations) == 0:
-            print("No annotations found for", state.comments, existing_name)
             return
-        
+                
+        #for a in existing_annotations:
+        #    print(a)
+
         existing_state["layers"][layer_id]["annotations"] = []
-        descriptions = list(set(row["description"] for row in existing_annotations if "description" in row))
+        descriptions = list(set(row["description"] for row in existing_annotations if "description" in row and "type" in row and row["type"] == "cloud"))
+
+        cloud_ids = list(set(row["id"] for row in existing_annotations if "id" in row and "type" in row and row["type"] == "cloud"))
+        if len(cloud_ids) == 0:
+            return
+
         if len(descriptions) == 0:
             descriptions = [None]
 
-        for description in descriptions:
-            parent_id = f"{Parsedata.random_string()}"
+        for cid, cloud_id in enumerate(cloud_ids):
             other_rows = []  # list of dictionaries
-            childAnnotationIds = []
-            points = []
+            childAnnotationIds = [row["childAnnotationIds"] for row in existing_annotations if "childAnnotationIds" in row and row["id"] == cloud_id][0]
+            points = []            
+            
+            all_points_in_cloud = [row for row in existing_annotations if "type" in row 
+                                    and row["type"] == "point"
+                                    and row["id"] in childAnnotationIds]
+            first_prop = all_points_in_cloud[0]["props"]
 
-            description_annotations = [ row for row in existing_annotations if "description" in row and row["description"] == description]
-            if len(description_annotations) > 0:
-                existing_annotations = description_annotations
-                first_annotation = existing_annotations[0]
-            else:
-                first_annotation = existing_annotations[0]
-                
-            first_prop = first_annotation["props"][0]
-
-            description_and_category = description
-            if "category" in first_annotation and first_annotation["category"] is not None:
-                description_and_category = f'{first_annotation["category"]}\n{description}'
-
-            for i, row in enumerate(existing_annotations):
-                if "point" in row:
-                    point = row["point"]
+            for i, existing_row in enumerate(all_points_in_cloud):
+                if "point" in existing_row:
+                    point = existing_row["point"]
                 else:
                     continue
 
-                if "props" in row:
-                    color = row["props"][0]
+                if "props" in existing_row:
+                    color = existing_row["props"][0]
                     props = [f"{color}", 1, 1, 5, 3, 1]
                 else:
                     props = default_props
 
-                row = {
+                new_row = {
                     "point": point,
                     "type": "point",
-                    "id": f"{Parsedata.random_string()}",
-                    PID: f"{parent_id}",
+                    "id": f"{existing_row['id']}",
+                    "PID": f"{cloud_id}",
                     "props": props
                 }
-                other_rows.append(row)
-                childAnnotationIds.append(row["id"])
-                points.append(row["point"])
+                other_rows.append(new_row)
+                points.append(new_row["point"])
 
             if len(points) == 0:
-                print(f"No points found for {state.comments} layer name={existing_name} {description}")
                 return
 
             first_row = {}
@@ -298,33 +294,28 @@ class Parsedata:
             first_row["childAnnotationIds"] = childAnnotationIds # random ids length of points
             first_row["childrenVisible"] = True
             first_row["type"] = "cloud"
-            first_row["id"] = f"{parent_id}"
+            first_row["id"] = f"{cloud_id}"
             first_row["props"] = [ f"{first_prop}", 1, 1, 5, 3, 1]
-            first_row["description"] = f"{description_and_category}"
+            first_row["description"] = f"{descriptions[cid]}"
 
             reformatted_annotations = []
             reformatted_annotations.append(first_row)
             reformatted_annotations.extend(other_rows)
 
-            print("Updating", state.comments, existing_name, description, len(reformatted_annotations))
             existing_state["layers"][layer_id]["annotations"] += reformatted_annotations
-            if debug:
-                for i, row in enumerate(existing_annotations):
-                    print(row)
-                    if i > 2:
-                        break
 
         state.updated = datetime.datetime.now(datetime.timezone.utc)
         existing_state["layers"][layer_id]["tool"] = "annotateCloud"
         existing_state["layers"][layer_id]["annotationProperties"] = create_json_header()
 
         if debug:
-            print('Finished debugging', state.comments, existing_name, len(reformatted_annotations))
+            task = "debugging"
         else:
+            task = "updating"
             state.neuroglancer_state = existing_state
             state.save()
-            print("Updated", state.comments, existing_name, len(reformatted_annotations))
 
+        print(f'Finished {task} URL ID={state.id} comments="{state.comments}", layer_name="{existing_name}" with {len(reformatted_annotations)} reformatted annotations')
 
 
 
@@ -578,6 +569,7 @@ if __name__ == '__main__':
     parser.add_argument('--id', help='Enter ID', required=False, default=None, type=int)
     parser.add_argument('--task', help='Enter task', required=True, type=str)
     parser.add_argument('--layer_type', help='Enter layer type', required=False, type=str)   
+    parser.add_argument('--layer_name', help='Enter layer name', required=False, type=str)   
 
     parser.add_argument('--debug', required=False, default='false', type=str)
 
@@ -585,10 +577,11 @@ if __name__ == '__main__':
 
     task = str(args.task).strip().lower()
     layer_type = str(args.layer_type).strip()
+    layer_name = str(args.layer_name).strip()
     debug = bool({'true': True, 'false': False}[args.debug.lower()])    
     id = args.id
 
-    pipeline = Parsedata(id=id, layer_type=layer_type, debug=debug)
+    pipeline = Parsedata(id=id, layer_type=layer_type, layer_name=layer_name, debug=debug)
 
     function_mapping = {
             "session": pipeline.parse_annotation,
