@@ -92,6 +92,8 @@ class NeuroglancerState(models.Model):
                 if 'annotations' in layer:
                     name = layer['name']
                     annotations = layer['annotations']
+                    for annotation in annotations:
+                        print(annotation)
                     ##### This is for the points
                     point_ids = list(set(row["id"] for row in annotations if "id" in row 
                                          and 'point' in row and "parentAnnotationId" not in row))

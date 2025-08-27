@@ -20,7 +20,6 @@ django.setup()
 from brain.models import Animal
 from neuroglancer.models import NeuroglancerState, AnnotationSession
 
-PID = "parentAnnotationId" # avoid spelling mistakes
 
 class Parsedata:
     def __init__(self, id=None, layer_type=None, layer_name=None, debug=False):
@@ -163,12 +162,12 @@ class Parsedata:
         annotations = layer['annotations']
         print(f'Layer={name}', end="\t")
         total_points = 0
-        cloud_ids = list(set(row[PID] for row in annotations if PID in row
+        cloud_ids = list(set(row["parentAnnotationId"] for row in annotations if "parentAnnotationId" in row
                                 and 'type' in row
                                 and row['type'] == 'point'))
 
         for parentId in cloud_ids:
-            points = [ row['point'] for row in annotations if 'point' in row and PID in row and row[PID] == parentId]
+            points = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == parentId]
             descriptions = [row["description"] for row in annotations if "description" in row 
                                     and 'type' in row 
                                     and row['type'] == 'cloud'
@@ -214,8 +213,8 @@ class Parsedata:
                     if "pointA" in row
                     and "type" in row
                     and row["type"] == "line"
-                    and PID in row
-                    and row[PID] == polygon_id
+                    and "parentAnnotationId" in row
+                    and row["parentAnnotationId"] == polygon_id
                 ]
                 number_of_points += len(points)
             total_points += number_of_points
@@ -243,7 +242,7 @@ class Parsedata:
                 
         #for a in existing_annotations:
         #    print(a)
-
+        #return
         existing_state["layers"][layer_id]["annotations"] = []
         descriptions = list(set(row["description"] for row in existing_annotations if "description" in row and "type" in row and row["type"] == "cloud"))
 
@@ -257,7 +256,8 @@ class Parsedata:
         for cid, cloud_id in enumerate(cloud_ids):
             other_rows = []  # list of dictionaries
             childAnnotationIds = [row["childAnnotationIds"] for row in existing_annotations if "childAnnotationIds" in row and row["id"] == cloud_id][0]
-            points = []            
+            points = []
+            child_ids = []            
             
             all_points_in_cloud = [row for row in existing_annotations if "type" in row 
                                     and row["type"] == "point"
@@ -280,9 +280,10 @@ class Parsedata:
                     "point": point,
                     "type": "point",
                     "id": f"{existing_row['id']}",
-                    "PID": f"{cloud_id}",
+                    "parentAnnotationId": f"{cloud_id}",
                     "props": props
                 }
+                child_ids.append(f"{existing_row['id']}")
                 other_rows.append(new_row)
                 points.append(new_row["point"])
 
@@ -292,7 +293,7 @@ class Parsedata:
             first_row = {}
             first_row["source"] = points[0]
             first_row["centroid"] = np.mean(points, axis=0).tolist()
-            first_row["childAnnotationIds"] = childAnnotationIds # random ids length of points
+            first_row["childAnnotationIds"] = child_ids
             first_row["childrenVisible"] = True
             first_row["type"] = "cloud"
             first_row["id"] = f"{cloud_id}"
@@ -398,7 +399,7 @@ class Parsedata:
                         "pointB": pointB, 
                         "type": "line",
                         "id": f"{id}",
-                        PID: f"{polygon_id}",
+                        "parentAnnotationId": f"{polygon_id}",
                         "props": props
                     }
                     polygon_lines.append(line)
@@ -412,7 +413,7 @@ class Parsedata:
                 polygon['childAnnotationIds'] = line_ids
                 polygon['type'] = 'polygon'
                 polygon['id'] = f"{polygon_id}"
-                polygon[PID] = f"{volume_id}"
+                polygon["parentAnnotationId"] = f"{volume_id}"
                 polygon['props'] = props
                 section = int(polygon['centroid'][-1])
                 polygon['section'] = section
