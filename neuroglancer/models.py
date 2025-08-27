@@ -324,7 +324,7 @@ class AnnotationSession(AtlasModel):
         if self.annotation is not None and 'type' in self.annotation:
             annotation_type = self.annotation['type']
         return annotation_type
-
+    
 
 class AnnotationData(AnnotationSession):
     """Model corresponding to the annotation points table in the database

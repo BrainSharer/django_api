@@ -30,6 +30,15 @@ class AnimalAdmin(AtlasAdminModel, ExportCsvMixin):
     search_fields = ('prep_id',)
     ordering = ['prep_id']
     exclude = ('created',)
+    
+    def has_delete_permission(self, request, obj=None):
+        """nobody can delete.
+
+        :param request: http request
+        :param obj: the slide obj
+        :return: False
+        """
+        return False
 
 
 
@@ -475,7 +484,7 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         super().save_model(request, obj, form, change)
 
     def has_delete_permission(self, request, obj=None):
-        """Cannot show or use the delete button at this stage.
+        """nobody can delete.
 
         :param request: http request
         :param obj: the slide obj
