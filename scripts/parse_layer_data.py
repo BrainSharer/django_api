@@ -73,7 +73,7 @@ class Parsedata:
             ids = [758, 761, 966, 679, 1005, 1007]
             ids = [0]
 
-            states = NeuroglancerState.objects.exclude(pk__in=ids).order_by('id').filter(active=True).all()
+            states = NeuroglancerState.objects.exclude(pk__in=ids).order_by('id').filter(active=False).all()
         for state in states:
             layer_ids_to_update = []
             existing_state = state.neuroglancer_state # big JSON

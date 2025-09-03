@@ -490,7 +490,7 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         :param obj: the slide obj
         :return: False
         """
-        return False
+        return True
 
     def has_add_permission(self, request, obj=None):
         """Cannot show or use the add button at this stage
