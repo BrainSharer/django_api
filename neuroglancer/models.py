@@ -29,7 +29,7 @@ class NeuroglancerState(models.Model):
     """
 
     id = models.BigAutoField(primary_key=True)
-    neuroglancer_state = models.JSONField(verbose_name="Neuroglancer State")
+    neuroglancer_state = models.JSONField(verbose_name="Neuroglancer State", blank=False, null=False, default={})
     lab = models.ForeignKey(Lab, on_delete=models.DO_NOTHING, null=True, db_column="FK_lab_id", verbose_name='Lab')
     animal = models.ForeignKey(Animal,  on_delete=models.DO_NOTHING, null=True,
                               blank=True, db_column="FK_prep_id",
