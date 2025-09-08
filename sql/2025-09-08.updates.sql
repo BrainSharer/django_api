@@ -3,7 +3,7 @@ drop view if exists sections;
 CREATE VIEW sections AS SELECT
 	`sc`.`id` AS `id`,
 	`a`.`prep_id` AS `prep_id`,
-	`s`.`file_name` AS `czi_file`,
+	`sc`.`czifile` AS `czi_file`,
 	`s`.`slide_physical_id` AS `slide_physical_id`,
 	`s`.`id` AS `FK_slide_id`,
 	`sc`.`file_name` AS `file_name`,
