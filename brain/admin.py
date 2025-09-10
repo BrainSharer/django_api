@@ -9,7 +9,7 @@ from django.contrib import admin
 from django.conf import settings
 from django.shortcuts import HttpResponseRedirect
 from django.utils.safestring import mark_safe
-from adminsortable2.admin import SortableAdminMixin
+#from adminsortable2.admin import SortableAdminMixin
 from import_export import resources
 from import_export.admin import ImportExportModelAdmin
 import copy
