@@ -134,6 +134,9 @@ def scene_reorder(slide):
         tif.save()
 
 def save_slide_model(self, request, obj, form, change):
+    print(f'in save_slide_model for slide {obj.id} and data')
+    print(form.cleaned_data) 
+    print(f'change {change}')
     """This method overrides the slide save method.
 
     :param request: The HTTP request.
@@ -141,7 +144,7 @@ def save_slide_model(self, request, obj, form, change):
     :param form: The form object.
     :param change: unused variable, shows if the form has changed.
     """
-
+    # Fetch the existing scenes for this slide, channel 1 only
     scene_indexes = list(SlideCziToTif.objects\
                         .filter(slide=obj).filter(channel=1).filter(active=True)\
                         .order_by('-active','scene_number','scene_index').values_list('scene_index', flat=True))
@@ -167,7 +170,7 @@ def save_slide_model(self, request, obj, form, change):
             difference = current - new
             remove_scene(obj, difference, idx)
 
-    scene_reorder(obj)
+    #scene_reorder(obj)
     obj.scenes = SlideCziToTif.objects.filter(slide=obj).filter(channel=1).filter(active=True).count()
 
 class TifInlineFormset(forms.models.BaseInlineFormSet):
@@ -185,6 +188,7 @@ class TifInlineFormset(forms.models.BaseInlineFormSet):
         :param instance: slide CZI TIFF object.
         :param commit: A boolean stating if the object should be committed.
         """
+        print(f'in save_existing for tif {instance.id} and data xxxxxxxxxxxxxxxxxxxxx')
         obj = super(TifInlineFormset, self).save_existing(form, instance, commit=True)
         channel_count = get_slide_channels(obj.slide) + 1
         other_channels = [i for i in range(2,channel_count)]
