@@ -311,7 +311,6 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         all_previews = ['previous_preview_tag', 'current_preview_tag', 'following_preview_tag']
         self.previews = []
         current_index = slide_ids.index(obj.slide_physical_id)
-        print(f'DEBUG: {current_index}, {slide_ids}')
         if current_index > 0:
             previous_index = slide_ids.index(slide_ids[current_index - 1])
             self.previews.append(all_previews[0])
@@ -539,7 +538,6 @@ class SectionResource(resources.ModelResource):
 
     def filter_export(self, queryset, **kwargs):
         query = queryset.filter(slide__scan_run__prep=self.animal) 
-        print(f"DEBUG: Filtering queryset for animal {self.animal}: -> {query.query}")
         return query
 
     class Meta:
