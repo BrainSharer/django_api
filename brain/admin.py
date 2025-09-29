@@ -657,18 +657,21 @@ class SectionAdmin(AtlasAdminModel, ExportCsvMixin):
         sections = Section.objects.filter(prep_id='XXXX')
         if request and request.GET:
             prep_id = request.GET['q']
-            histology = None
+            scan_run = None
             try:
-                histology = Histology.objects.get(prep_id=prep_id)
-            except Histology.DoesNotExist:
+                scan_run = ScanRun.objects.get(prep_id=prep_id)
+            except ScanRun.DoesNotExist:
                 orderby = 'ASC'
 
-            if histology is not None: 
-                orderby = histology.side_sectioned_first
+            if scan_run is not None: 
+                orderby = scan_run.section_schema
 
-            if orderby == 'DESC':
+            if orderby == 'desc':
                 sections =  Section.objects.filter(prep_id__exact=prep_id).filter(channel=1)\
                     .order_by('-slide_physical_id', '-scene_number')
+            elif orderby == 'manual':
+                sections = Section.objects.filter(prep_id__exact=prep_id).filter(channel=1)\
+                    .order_by('scene_order')
             else:
                 sections = Section.objects.filter(prep_id__exact=prep_id).filter(channel=1)\
                     .order_by('slide_physical_id', 'scene_number')

@@ -198,6 +198,11 @@ class ScanRun(AtlasModel):
             NO_MASK = 0, _('No mask')
             FULL_MASK = 1, _('Full mask')
             BOTTOM_MASK = 2, _('Bottom mask')
+
+    class SectionSchemaChoices(models.TextChoices):
+            ASC = 'asc', _('Ascending')
+            DESC = 'desc', _('Descending')
+            MANUAL = 'manual', _('Manual')
     
     id = models.AutoField(primary_key=True)
     prep = models.OneToOneField(Animal, models.CASCADE, db_column='FK_prep_id')
@@ -206,6 +211,7 @@ class ScanRun(AtlasModel):
     resolution = models.FloatField(verbose_name="XY Resolution (µm)", default=0.325)
     zresolution = models.FloatField(verbose_name="Z Resolution (µm)", default=20)
     number_of_slides = models.IntegerField(verbose_name="Slide count (0=autodetect)", default=0)
+    section_schema = models.CharField(max_length=10, choices=SectionSchemaChoices.choices, default=SectionSchemaChoices.ASC, blank=False, null=False)
     scan_date = models.DateField(blank=True, null=True)
     file_type = EnumField(choices=['CZI','JPEG2000','NDPI','NGR'], blank=True, null=True)
     channels_per_scene = models.IntegerField(blank=False, null=False, default=3)
@@ -349,6 +355,7 @@ class Section(AtlasModel):
     tif = models.ForeignKey(SlideCziToTif, models.DO_NOTHING, db_column='tif_id')
     scene_number = models.IntegerField(null=False, verbose_name='Scene')
     scene_index = models.IntegerField(null=False, verbose_name='Scene Index')
+    scene_order = models.IntegerField(null=False, verbose_name='Scene Order')
     channel = models.IntegerField(null=False)
 
     def tif(self):
