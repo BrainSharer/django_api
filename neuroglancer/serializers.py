@@ -69,7 +69,6 @@ class NeuroglancerStateSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def create(self, validated_data):
-        print('validated_data', validated_data)
         """This method gets called when a user clicks New in Neuroglancer
         """
         animal = validated_data.get('animal', None)
