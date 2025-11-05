@@ -141,6 +141,7 @@ def save_slide_model(self, request, obj, form, change):
     :param form: The form object.
     :param change: unused variable, shows if the form has changed.
     """
+    print('Save Slide Model called')
     # Fetch the existing scenes for this slide, channel 1 only
     scene_indexes = list(SlideCziToTif.objects\
                         .filter(slide=obj).filter(channel=1).filter(active=True)\
@@ -175,7 +176,7 @@ class TifInlineFormset(forms.models.BaseInlineFormSet):
     This is where the work is done for rearranging and editing the scenes.
     """
 
-    def save_existing(self, form, instance, commit=True):
+    def save_existing(self, formset, parent_instance, commit=True):
         """This is called when updating an instance of the inline tifs associated with a slide.
         The only thing to update is the scene order in case a user changes a number in the scene
         number text box. Note that the tifs in the form are only with channel 1, but if we 
@@ -184,20 +185,38 @@ class TifInlineFormset(forms.models.BaseInlineFormSet):
         :param form: Form object.
         :param instance: slide CZI TIFF object.
         :param commit: A boolean stating if the object should be committed.
+        :return: The saved instances.
         """
-        obj = super(TifInlineFormset, self).save_existing(form, instance, commit=True)
-        channel_count = get_slide_channels(obj.slide) + 1
-        other_channels = [i for i in range(2,channel_count)]
-        # list of tuples where the 1st element in tuple is scene number and 2nd element is active
-        orderings = list(SlideCziToTif.objects.filter(slide=obj.slide).filter(channel=1).order_by('scene_index').values_list('scene_number', 'active'))
-        for channel in other_channels:
-            tifs = SlideCziToTif.objects.filter(slide=obj.slide).filter(channel=channel).order_by('scene_index')
-            for i, tif in enumerate(tifs):
-                tif.scene_number = orderings[i][0]
-                tif.active = orderings[i][1]
-                tif.save()
-        
-        return obj
+        saved_instances = []
+        for form in self.forms:
+            if not form.has_changed():
+                # Skip if no changes detected in the form
+                continue
+
+            # The instance linked to this form
+            slide_tif = form.instance
+
+            if slide_tif.pk:
+                channel_count = get_slide_channels(slide_tif.slide) + 1
+                other_channels = [i for i in range(2, channel_count)]
+                # Existing instance: update only changed fields
+                changed_fields = form.changed_data
+                update_dict = {}
+                for field_name in changed_fields:
+                    update_dict[field_name] = form.cleaned_data[field_name]
+                    setattr(slide_tif, field_name, form.cleaned_data[field_name])
+
+                # Update channel 1
+                slide_tif.save(update_fields=changed_fields)
+                # update other channels
+                for channel in other_channels:
+                    channel_filename = slide_tif.file_name.replace('_C1.tif', f'_C{channel}.tif')
+                    SlideCziToTif.objects.filter(slide=slide_tif.slide).filter(channel=channel).filter(file_name=channel_filename)\
+                        .update(**update_dict)
+
+            saved_instances.append(slide_tif)
+
+        return saved_instances        
 
 class AnimalFormMixin(forms.Form):
     animal = forms.ModelChoiceField(queryset=Animal.objects.all(), required=True)
