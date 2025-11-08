@@ -256,6 +256,7 @@ class Slide(AtlasModel):
     slide_physical_id = models.IntegerField()
     slide_status = EnumField(choices=['Bad','Good'], blank=False, null=False)
     scenes = models.IntegerField(validators=[MinValueValidator(0),MaxValueValidator(6)])
+    """ TODO remove these fields as they are no longer used
     insert_before_one = models.IntegerField(blank=False, null=False, default=0,
                                             verbose_name='Replicate scene index 0',
                                             validators=[MinValueValidator(0),MaxValueValidator(5)])
@@ -280,11 +281,11 @@ class Slide(AtlasModel):
     insert_between_seven_eight = models.IntegerField(blank=False, null=False, default=0,
                                                   verbose_name='Replicate scene index 7',
                                                   validators=[MinValueValidator(0),MaxValueValidator(5)])
-
+    """
     file_name = models.CharField(max_length=200)
     checksum = models.CharField(max_length=64, blank=True, null=True)
-    
     comments = models.TextField(max_length=2001, blank=True, null=True)
+    models.TextField(max_length=2001, blank=True, null=True)
     file_size = models.FloatField(verbose_name='File size (bytes)')
     processed = models.BooleanField(verbose_name="Converted")
 
@@ -309,14 +310,13 @@ class SlideCziToTif(AtlasModel):
     slide = models.ForeignKey(Slide, models.CASCADE, db_column='FK_slide_id')
     czifile = models.CharField(max_length=200, null=False)
     file_name = models.CharField(max_length=200, null=False)
-    scene_number = models.IntegerField(blank=False, null=False, default=1,
+    scene_number = models.PositiveIntegerField(blank=False, null=False, default=1,
                                                     verbose_name='Scene Ordering',
                                                     validators=[MinValueValidator(1),MaxValueValidator(100)])
     scene_index = models.IntegerField(blank=False, null=False, default=1)
     channel = models.IntegerField()
     width = models.IntegerField(verbose_name='Width (pixels)', blank=False, null=False, default=0)
     height = models.IntegerField(verbose_name='Height (pixels)', blank=False, null=False, default=0)
-    comments = models.TextField(max_length=2000, blank=True, null=True)
     file_size = models.FloatField(verbose_name='File size (bytes)', blank=False, null=False, default=0)
     processing_duration = models.FloatField(verbose_name="Processing time (seconds)", blank=False, null=False, default=0)
     scene_order = models.PositiveIntegerField(
@@ -324,7 +324,8 @@ class SlideCziToTif(AtlasModel):
         blank=False,
         null=False,
         db_index=True
-    )    
+    )
+    copy_count = models.PositiveIntegerField(default=0, blank=False, null=False, verbose_name='Copy count')
 
     def max_scene(self):
         """This method gives you the number of scenes on a slide

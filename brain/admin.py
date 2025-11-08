@@ -14,7 +14,7 @@ from import_export import resources
 from import_export.admin import ImportExportModelAdmin
 import copy
 
-from brain.forms import save_slide_model, TifInlineFormset, scene_reorder, CustomExportForm
+from brain.forms import TifInlineFormset, scene_reorder, CustomExportForm
 from brain.models import (Animal, Histology, Injection, Virus, InjectionVirus,
                           ScanRun, Slide, SlideCziToTif, Section)
 from brainsharer.admin_extensions import AtlasAdminModel, ExportCsvMixin
@@ -149,9 +149,9 @@ class TifInline(admin.TabularInline):
             laid out on the page.
     """
     model = SlideCziToTif
-    fields = ('file_name','scene_number', 'active', 'scene_index', 'section_number', 'channel', 
+    fields = ('filename_display','copy_count', 'scene_number', 'active', 'scene_index', 'section_number', 'channel', 
         'scene_image', 'section_image')
-    readonly_fields = ['file_name', 'section_number', 'channel', 
+    readonly_fields = ['filename_display', 'section_number', 'channel', 
         'scene_index', 'scene_image', 'section_image']
     ordering = ['-active', 'scene_number', 'scene_index']
     extra = 0
@@ -190,6 +190,21 @@ class TifInline(admin.TabularInline):
         return str(index).zfill(3) + ".tif"
 
     section_number.short_description = 'Section' 
+
+    def filename_display(self, obj):
+        other_filename = obj.file_name.replace('C1.tif', '')
+        other_channels = SlideCziToTif.objects.filter(slide=obj.slide)\
+            .filter(file_name__startswith=other_filename)\
+            .filter(channel__gt=1)\
+            .filter(scene_number=obj.scene_number)\
+            .values_list('file_name', flat=True)\
+            .distinct()
+        display_channel = []
+        for other_channel in other_channels:
+            display_channel.append(f'<div style="padding-left: 15px;">{other_channel}</div>')
+        return mark_safe(
+            '<h4>{}</h4>{}'.format(obj.file_name,' '.join(display_channel)))
+    filename_display.short_description = 'Filename (channel)'
 
     def scene_image(self, obj):
         """This method tests if there is a 
@@ -326,6 +341,7 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
             pass
 
         fields = ['file_name', 'scan_run', 'slide_physical_id', 'slide_status']
+        """ TODO remove these fields as they are no longer used
         replication_fields = {
             0: ['insert_before_one'],
             1: ['insert_between_one_two'],
@@ -340,6 +356,7 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
             if scene_index in replication_fields:
                 fields.extend(replication_fields[scene_index])
 
+        """
         fields.extend(['comments'])
         fields.extend(self.previews)
 
@@ -467,21 +484,12 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         qs = Slide.objects.filter(active=True)
         return qs
 
+    """
     def save_model(self, request, obj, form, change):
-        """Description of save_model - overridden method of the save 
-        method. When the user changes the scenes via the QA form, 
-        the usual save isn't sufficient so we override it.
-
-        :param self: the admin slide obj
-        :param request: the http request
-        :param obj: the slide obj
-        :param form: the form obj
-        :param change: if the form has changed or not.
-        """
         obj.user = request.user
         save_slide_model(self, request, obj, form, change)
         super().save_model(request, obj, form, change)
-
+    """
     def has_delete_permission(self, request, obj=None):
         """nobody can delete.
 
@@ -512,20 +520,15 @@ class SlideAdmin(AtlasAdminModel, ExportCsvMixin):
         """Reset all tifs belong to this slide to its original state
         """
         if "_reset-slide" in request.POST:
-            Slide.objects.filter(id=obj.id)\
-                .update(insert_before_one=0,
-                insert_between_one_two=0,
-                insert_between_two_three=0,
-                insert_between_three_four=0,
-                insert_between_four_five=0,
-                insert_between_five_six=0)
             SlideCziToTif.objects.filter(slide__id=obj.id).update(active=True)
             existing_file_names = []
             for placeholder in SlideCziToTif.objects.filter(slide__id=obj.id).all():
+                placeholder.copy_count = 0
                 if placeholder.file_name in existing_file_names:
                     placeholder.delete()
                 else:
                     existing_file_names.append(placeholder.file_name)
+                    placeholder.save()
             scene_reorder(obj.id)
             self.message_user(request, "The slide has been reset to it's original state.")
             return HttpResponseRedirect(".")

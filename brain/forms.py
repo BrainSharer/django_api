@@ -3,9 +3,12 @@ The user can rearrange, edit, and hide scenes with these forms.
 """
 from django import forms
 from django.forms import ModelChoiceField
-from brain.models import Animal, Slide, SlideCziToTif
+from brain.models import Animal, SlideCziToTif
 from import_export.forms import ExportForm
 
+from django.forms.models import BaseInlineFormSet
+from django.db import transaction
+from django.db.models import Q
 
 
 class AnimalForm(forms.Form):
@@ -26,99 +29,11 @@ class AnimalChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
         return obj.prep_id
 
-def repeat_scene(slide, inserts, scene_index):
-    """ Helper method to duplicate a scene.
-
-    :param slide: An integer primary key of the slide.
-    :param inserts: An integer defining how many scenes to insert.
-    :param scene_number: An integer used to find the nearest neighbor
-    """
-    tifs = SlideCziToTif.objects.filter(slide=slide).filter(active=True) \
-        .filter(scene_index=scene_index)
-
-    if not tifs:
-        tifs = find_closest_neighbor(slide, scene_index)
-
-    for _ in range(inserts):
-        create_scene(tifs, scene_index)
-
-
-def remove_scene(slide, deletes, scene_number):
-    """ Helper method to remove a scene.
-
-    :param slide: An integer primary key of the slide.
-    :param deletes: An integer defining how many scenes to delete.
-    :param scene_number: An integer used to find the nearest neighbor
-    """
-    channels = SlideCziToTif.objects.filter(slide=slide).filter(active=True).values('channel').distinct().count()
-    for channeli in range(channels):
-        tifs = SlideCziToTif.objects.filter(slide=slide).filter(active=True) \
-            .filter(scene_number=scene_number).filter(channel=channeli+1)[:deletes]
-        for tif in tifs:
-            tif.delete()
-
-
-def create_scene(tifs, scene_index):
-    """ Helper method to create a scene.
-
-    :param tifs: A list of TIFFs.
-    :param scene_number: An integer used to find the nearest neighbor
-    """
-    for tif in tifs:
-        newtif = tif
-        newtif.active = True
-        newtif.pk = None
-        newtif.scene_index = scene_index
-        newtif.save()
-
-
-def find_closest_neighbor(slide, scene_index):
-    """Helper method to get the nearest scene. Look first at the preceding tifs, 
-        if nothing is there, go for the one just after.
-
-    :param slide:  primary key of the slide
-    :param scene_number: scene number. 1 per set of 3 channels
-    :return:  set of tifs
-    """
-    channels = get_slide_channels(slide)
-
-    below = SlideCziToTif.objects.filter(slide=slide).filter(active=True) \
-                .filter(scene_index__lt=scene_index).order_by('-scene_index')[:channels]
-    if below.exists():
-        tifs = below
-    else:
-        tifs = SlideCziToTif.objects.filter(slide=slide).filter(active=True) \
-                .filter(scene_index__gt=scene_index).order_by('scene_index')[:channels]
-
-    return tifs
-
-
-def set_scene_active_inactive(slide, scene_index, active):
-    """ Helper method to set a scene as active or inactive.
-
-    :param slide: An integer for the primary key of the slide.
-    :param scene_number: An integer used to find the nearest neighbor.
-    :param active: A boolean defining whether to set the scene active or inactive
-    """
-    tifs = SlideCziToTif.objects.filter(slide=slide).filter(scene_index=scene_index).order_by('scene_index')
-    for tif in tifs:
-        tif.active = active
-        tif.save()
-
-def set_end(slide, scene_number):
-    """ Helper method to set a scene as the very last one in a brain.
-
-    :param slide: An integer for the primary key of the slide.
-    :param scene_number: An integer used to find the nearest neighbor.
-    """
-    tifs = SlideCziToTif.objects.filter(slide=slide).filter(scene_number__gte=scene_number)
-    for tif in tifs:
-        tif.active = False
-        tif.save()
 
 def get_slide_channels(slide):
     channels = SlideCziToTif.objects.filter(slide=slide).filter(active=True).values('channel').distinct().count()
     return channels
+
 
 def scene_reorder(slide):
     """ Helper method to reorder a set of scenes.
@@ -133,90 +48,238 @@ def scene_reorder(slide):
         tif.scene_number = new_scene
         tif.save()
 
-def save_slide_model(self, request, obj, form, change):
-    """This method overrides the slide save method.
 
-    :param request: The HTTP request.
-    :param obj: The slide object.
-    :param form: The form object.
-    :param change: unused variable, shows if the form has changed.
+class TifInlineFormset(BaseInlineFormSet):
     """
-    print('Save Slide Model called')
-    # Fetch the existing scenes for this slide, channel 1 only
-    scene_indexes = list(SlideCziToTif.objects\
-                        .filter(slide=obj).filter(channel=1).filter(active=True)\
-                        .order_by('-active','scene_number','scene_index').values_list('scene_index', flat=True))
-    scene_indexes = sorted(set(scene_indexes))
-    form_names = ['insert_before_one', 'insert_between_one_two', 'insert_between_two_three','insert_between_three_four',
-                  'insert_between_four_five', 'insert_between_five_six', 'insert_between_six_seven', 'insert_between_seven_eight']
-    new_values = [form.cleaned_data.get(name) for name in form_names]
-    ## do the inserts
-    current_values = Slide.objects.values_list('insert_before_one', 'insert_between_one_two',
-                                               'insert_between_two_three', 'insert_between_three_four', 
-                                               'insert_between_four_five', 'insert_between_five_six',
-                                               'insert_between_six_seven', 'insert_between_seven_eight',
-                                               ).get(pk=obj.id)
-
-    for idx, scene_index in enumerate(scene_indexes):
-        
-        new = new_values[idx]
-        current = current_values[idx]
-        if new is not None and new > current:
-            difference = new - current
-            repeat_scene(obj, difference, idx)
-        if new is not None and new < current:
-            difference = current - new
-            remove_scene(obj, difference, idx)
-
-    #scene_reorder(obj)
-    obj.scenes = SlideCziToTif.objects.filter(slide=obj).filter(channel=1).filter(active=True).count()
-
-class TifInlineFormset(forms.models.BaseInlineFormSet):
-    """This class defines the form for the subsets of scenes for a slide.
-    This is where the work is done for rearranging and editing the scenes.
+    A custom inline formset that:
+    1. Detects and updates only changed fields.
+    2. Updates similar rows (e.g., same group_field).
+    3. Duplicates rows based on an integer field (duplicate_count).
+    4. Uses a single atomic transaction for performance and consistency.
     """
 
-    def save_existing(self, formset, parent_instance, commit=True):
-        """This is called when updating an instance of the inline tifs associated with a slide.
-        The only thing to update is the scene order in case a user changes a number in the scene
-        number text box. Note that the tifs in the form are only with channel 1, but if we 
-        reorder the scenes, we need to do it on all channels, not just channel 1.
+    # configure which field defines “similar rows”
+    group_field = 'channel'          # example: all rows with same category are similar
+    duplicate_field = 'copy_count'  # integer field for how many times to copy
+    fields_we_are_changing = ['active', 'scene_number']
 
-        :param form: Form object.
-        :param instance: slide CZI TIFF object.
-        :param commit: A boolean stating if the object should be committed.
-        :return: The saved instances.
+    def save(self, commit=True):
         """
+        Override the default save to handle:
+        - selective updates
+        - propagating changes to similar rows
+        - duplication logic
+        """
+        # track instances for later
+        updated_instances = super().save(commit=False)
+
+        # Defer all DB operations to a single atomic commit
+        with transaction.atomic():
+            for form in self.forms:
+                if not form.has_changed():
+                    continue  # skip unchanged forms
+
+                instance = form.save(commit=False)
+
+                changed_fields = form.changed_data
+                if instance.pk:
+                    # update the instance only on changed fields
+                    instance.save(update_fields=changed_fields)
+                    updated_instances.append(instance)
+
+                    # propagate changes to similar rows
+                    self._update_similar_rows(instance, changed_fields)
+
+                # handle duplication
+                self._handle_duplication(instance)
+
+        #if commit:
+        #    return updated_instances
+        return updated_instances
+
+    def _update_similar_rows(self, instance, changed_fields):
+        """
+        Find and update similar rows that share the same `group_field` value.
+        """
+        
+        if set(changed_fields).intersection(set(self.fields_we_are_changing)) == set():
+            return  # no relevant fields changed
+
+        qs = self.find_similar_rows(instance)
+        # Apply same changes to similar rows
+        update_data = {field: getattr(instance, field) for field in changed_fields}
+        if update_data:
+            qs.update(**update_data)
+
+    def _handle_duplication(self, instance):
+        """
+        Duplicate the instance N times (based on `duplicate_field`),
+        and optionally create dependent duplicates based on the group field.
+        """
+        n = getattr(instance, self.duplicate_field, 0)
+        if not n or n < 1:
+            return
+
+        #model = instance.__class__
+        #related_manager = getattr(instance, self.fk.name)
+
+        duplicates = []
+        for _ in range(n):
+            clone = self._clone_instance(instance)
+            clone.save()
+            duplicates.append(clone)
+
+            # also duplicate similar rows if applicable
+            group_value = getattr(instance, self.group_field, None)
+            if group_value:
+                #similar_qs = model.objects.filter(**{self.group_field: group_value}).exclude(pk=instance.pk)
+                similar_qs = self.find_similar_rows(instance)
+                for sim in similar_qs:
+                    sim_clone = self._clone_instance(sim)
+                    sim_clone.save()
+                    duplicates.append(sim_clone)
+
+        # reset copy_count on original instance to 0
+        instance.copy_count = 0
+        instance.save()
+        return duplicates
+
+    def _clone_instance(self, instance):
+        """
+        Returns a shallow copy of the model instance suitable for saving as a new row.
+        """
+        clone = instance.__class__.objects.get(pk=instance.pk)
+        clone.pk = None  # reset primary key
+        clone.copy_count = 0  # reset copy count on clone
+        #clone.save()
+        return clone
+
+
+    def find_similar_rows(self, instance):
+        other_filename = instance.file_name.replace('C1.tif', '')
+        print(f'Looking for rows that start with {other_filename}')
+        similar_rows = self.model.objects.filter(slide=instance.slide).filter(file_name__startswith=other_filename)\
+            .exclude(pk=instance.pk)\
+            .filter(channel__gt=1)
+            
+        print(f'Found {len(similar_rows)} similar rows for {instance.file_name}')
+        return similar_rows
+    """
+
+    def duplicate_row(self, instance, count):
+        for i in range(count):
+            clone = self.model.objects.get(pk=instance.pk)
+            clone.pk = None
+            clone.copy_count = 0  # reset copy count on clone
+            clone.save()
+
+            # Also duplicate similar rows
+            for sim in self.find_similar_rows(instance):
+                sim_copy = self.model.objects.get(pk=sim.pk)
+                sim_copy.pk = None
+                sim.copy_count = 0  # reset copy count on clone
+                sim_copy.save()
+
+    def update_changed_fields(self, instance, form):
+        changed_fields = form.changed_data
+        if 'copy_count' in changed_fields:
+            changed_fields.remove('copy_count')  # exclude copy_count from update fields
+        if not changed_fields:
+            return
+
+        for field in changed_fields:
+            setattr(instance, field, form.cleaned_data[field])
+        instance.save(update_fields=changed_fields)
+
+    @transaction.atomic
+    def save(self, commit=True):
+        instances = super().save(commit=False)
+
+        for form in self.forms:
+            slide_tif = form.instance
+            # checks for changed form, changed data and existing pk
+            if form.has_changed():
+                # Update channel 1
+                self.update_changed_fields(slide_tif, form)
+
+                # Determine changed fields excluding copy_count
+                changed_fields = form.changed_data
+                if 'copy_count' in changed_fields:
+                    changed_fields.remove('copy_count')  # exclude copy_count from update fields
+                if len(changed_fields) > 0:
+                    for field in changed_fields:
+                        setattr(slide_tif, field, form.cleaned_data[field])
+                    slide_tif.copy_count = 0  # reset copy count on save
+                    slide_tif.save(update_fields=changed_fields)
+
+                    # Update channels 2 and up if they exist
+                    for similar in self.find_similar_rows(slide_tif):
+                        for field_name in changed_fields:
+                            setattr(similar, field_name, form.cleaned_data[field_name])
+                            print(f'Setting {field_name} from {getattr(similar, field_name)} to {form.cleaned_data[field_name]}')
+                        similar.copy_count = 0  # reset copy count on similar
+                        similar.save(update_fields=changed_fields)
+
+                # Handle duplication
+                count = form.cleaned_data.get("copy_count", 0)
+                if count > 0:
+                    self.duplicate_row(slide_tif, count)
+                    scene_reorder(slide_tif.slide)
+
+            else:
+                print(f'No changes for slide_tif id {slide_tif.id}, skipping update and duplications')
+
+        
+        return instances
+
+
+    @transaction.atomic
+    def saveXXXXXXXXX(self, commit=True):
+        instances = super().save(commit=False)
         saved_instances = []
         for form in self.forms:
-            if not form.has_changed():
-                # Skip if no changes detected in the form
+            if not form.cleaned_data or form.cleaned_data.get('DELETE', False):
                 continue
 
-            # The instance linked to this form
-            slide_tif = form.instance
+            if form.has_changed():
+                # The instance linked to this form
+                slide_tif = form.instance
 
-            if slide_tif.pk:
-                channel_count = get_slide_channels(slide_tif.slide) + 1
-                other_channels = [i for i in range(2, channel_count)]
-                # Existing instance: update only changed fields
-                changed_fields = form.changed_data
-                update_dict = {}
-                for field_name in changed_fields:
-                    update_dict[field_name] = form.cleaned_data[field_name]
-                    setattr(slide_tif, field_name, form.cleaned_data[field_name])
+                if slide_tif.pk and form.changed_data:
+                    channel_count = get_slide_channels(slide_tif.slide) + 1
+                    other_channels = [i for i in range(2, channel_count)]
+                    # Existing instance: update only changed fields
+                    changed_fields = form.changed_data
+                    update_dict = {}
+                    for field_name in changed_fields:
+                        update_dict[field_name] = form.cleaned_data[field_name]
+                        setattr(slide_tif, field_name, form.cleaned_data[field_name])
 
-                # Update channel 1
-                slide_tif.save(update_fields=changed_fields)
-                # update other channels
-                for channel in other_channels:
-                    channel_filename = slide_tif.file_name.replace('_C1.tif', f'_C{channel}.tif')
-                    SlideCziToTif.objects.filter(slide=slide_tif.slide).filter(channel=channel).filter(file_name=channel_filename)\
-                        .update(**update_dict)
+                    # Update channel 1
+                    slide_tif.save(update_fields=changed_fields)
+                    saved_instances.append(slide_tif)
+                    # update other channels
+                    for channel in other_channels:
+                        channel_filename = slide_tif.file_name.replace('_C1.tif', f'_C{channel}.tif')
+                        SlideCziToTif.objects.filter(slide=slide_tif.slide).filter(channel=channel).filter(file_name=channel_filename)\
+                            .update(**update_dict)
+                        
+                    # Duplicate logic
+                    copy_count = form.cleaned_data.get("copy_count", 1)
+                    if copy_count > 1:
+                        print(f'Duplicating slide {slide_tif.id} for {copy_count} copies')
+                        for _ in range(copy_count - 1):
+                            print(f'Duplicating slide {slide_tif.id} for other channels {other_channels}')
+                            clones = self._duplicate_instance(slide_tif, other_channels)
+                            for clone in clones:
+                                clone.save()
+                                saved_instances.append(clone)
 
-            saved_instances.append(slide_tif)
+                saved_instances.append(slide_tif)
 
         return saved_instances        
+    
+    """
 
 class AnimalFormMixin(forms.Form):
     animal = forms.ModelChoiceField(queryset=Animal.objects.all(), required=True)
