@@ -567,14 +567,14 @@ def check_if_contour_points_are_in_order(first_point, start_points, end_points):
         assert np.all(np.isclose(start_points[i + 1], end_points[i], atol=0.1))
 
 
-def random_string() -> str:
+def random_string(k=40) -> str:
     """Creates a 40 char string of random characters
     For some reason, if the string has a leading digit, mysql will insert as integer
     I switched it to just alpha.
     """
     
     #return ''.join(random.choices(string.ascii_lowercase + string.digits, k=40))
-    return ''.join(random.choices(string.ascii_lowercase, k=40))
+    return ''.join(random.choices(string.ascii_lowercase, k=k))
 
 
 def create_point_annotation(coordinates, description=None, category=None, type='point'):

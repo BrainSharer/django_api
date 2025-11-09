@@ -9,6 +9,7 @@ from import_export.forms import ExportForm
 from django.forms.models import BaseInlineFormSet
 from django.db import transaction
 from django.db.models import Q
+import copy
 
 
 class AnimalForm(forms.Form):
@@ -63,6 +64,11 @@ class TifInlineFormset(BaseInlineFormSet):
     duplicate_field = 'copy_count'  # integer field for how many times to copy
     fields_we_are_changing = ['active', 'scene_number']
 
+    def create_id_dictionary(self, instance):
+        queryset = SlideCziToTif.objects.filter(slide=instance.slide).filter(active=True)
+        channel_ids = {obj.id: obj.channel for obj in queryset}
+        return channel_ids
+
     def save(self, commit=True):
         """
         Override the default save to handle:
@@ -80,7 +86,6 @@ class TifInlineFormset(BaseInlineFormSet):
                     continue  # skip unchanged forms
 
                 instance = form.save(commit=False)
-
                 changed_fields = form.changed_data
                 if instance.pk:
                     # update the instance only on changed fields
@@ -88,28 +93,26 @@ class TifInlineFormset(BaseInlineFormSet):
                     updated_instances.append(instance)
 
                     # propagate changes to similar rows
-                    self._update_similar_rows(instance, changed_fields)
+                    self._update_other_channels(instance, changed_fields, form)
 
                 # handle duplication
                 self._handle_duplication(instance)
 
-        #if commit:
-        #    return updated_instances
         return updated_instances
 
-    def _update_similar_rows(self, instance, changed_fields):
-        """
-        Find and update similar rows that share the same `group_field` value.
-        """
-        
-        if set(changed_fields).intersection(set(self.fields_we_are_changing)) == set():
+    def _update_other_channels(self, instance, changed_fields, form):
+        update_changed_fields = copy.deepcopy(changed_fields)
+        if set(update_changed_fields).intersection(set(self.fields_we_are_changing)) == set():
             return  # no relevant fields changed
 
-        qs = self.find_similar_rows(instance)
+        rows = self.get_other_channels(instance)
         # Apply same changes to similar rows
-        update_data = {field: getattr(instance, field) for field in changed_fields}
+        update_data = {field: getattr(instance, field) for field in update_changed_fields}
         if update_data:
-            qs.update(**update_data)
+            for row in rows:
+                for field in update_changed_fields:
+                        setattr(row, field, form.cleaned_data[field])
+                row.save()            
 
     def _handle_duplication(self, instance):
         """
@@ -124,20 +127,19 @@ class TifInlineFormset(BaseInlineFormSet):
         #related_manager = getattr(instance, self.fk.name)
 
         duplicates = []
+        other_channels = self.get_other_channels(instance)
+
         for _ in range(n):
+            # clone channel 1
             clone = self._clone_instance(instance)
             clone.save()
             duplicates.append(clone)
 
-            # also duplicate similar rows if applicable
-            group_value = getattr(instance, self.group_field, None)
-            if group_value:
-                #similar_qs = model.objects.filter(**{self.group_field: group_value}).exclude(pk=instance.pk)
-                similar_qs = self.find_similar_rows(instance)
-                for sim in similar_qs:
-                    sim_clone = self._clone_instance(sim)
-                    sim_clone.save()
-                    duplicates.append(sim_clone)
+            # also duplicate channels 2,3 n number of times
+            for sim in other_channels:
+                sim_clone = self._clone_instance(sim)
+                sim_clone.save()
+                duplicates.append(sim_clone)
 
         # reset copy_count on original instance to 0
         instance.copy_count = 0
@@ -155,15 +157,20 @@ class TifInlineFormset(BaseInlineFormSet):
         return clone
 
 
-    def find_similar_rows(self, instance):
-        other_filename = instance.file_name.replace('C1.tif', '')
-        print(f'Looking for rows that start with {other_filename}')
-        similar_rows = self.model.objects.filter(slide=instance.slide).filter(file_name__startswith=other_filename)\
-            .exclude(pk=instance.pk)\
-            .filter(channel__gt=1)
-            
-        print(f'Found {len(similar_rows)} similar rows for {instance.file_name}')
-        return similar_rows
+    def get_other_channels(self, instance):
+        other_rows = []
+        channel_count = get_slide_channels(instance.slide) + 1
+        other_channels = [i for i in range(2, channel_count)]
+        channel_names = []
+
+        for channel in other_channels:
+            channel_filename = instance.file_name.replace('_C1.tif', f'_C{channel}.tif')
+            channel_names.append(channel_filename)
+            other_channel = self.model.objects.filter(slide=instance.slide).filter(file_name=channel_filename).filter(active=True).first()
+            other_rows.append(other_channel)
+
+        return other_rows
+
     """
 
     def duplicate_row(self, instance, count):
@@ -174,7 +181,7 @@ class TifInlineFormset(BaseInlineFormSet):
             clone.save()
 
             # Also duplicate similar rows
-            for sim in self.find_similar_rows(instance):
+            for sim in self.get_other_channels(instance):
                 sim_copy = self.model.objects.get(pk=sim.pk)
                 sim_copy.pk = None
                 sim.copy_count = 0  # reset copy count on clone
@@ -213,7 +220,7 @@ class TifInlineFormset(BaseInlineFormSet):
                     slide_tif.save(update_fields=changed_fields)
 
                     # Update channels 2 and up if they exist
-                    for similar in self.find_similar_rows(slide_tif):
+                    for similar in self.get_other_channels(slide_tif):
                         for field_name in changed_fields:
                             setattr(similar, field_name, form.cleaned_data[field_name])
                             print(f'Setting {field_name} from {getattr(similar, field_name)} to {form.cleaned_data[field_name]}')

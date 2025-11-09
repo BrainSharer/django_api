@@ -1,5 +1,37 @@
-</style>
 {% load i18n admin_urls static admin_modify %}
+<style>
+  .tooltip-wrap {
+  position: relative;
+}
+.tooltip-wrap .tooltip-content {
+  display: none;
+  position: absolute;
+  bottom: 5%;
+  left: 5%;
+  right: 5%;
+  background-color: #fff;
+  border: 10px solid #ccc;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 1000; /* Ensures the popup is on top */
+  /* Setting the width */
+  width: 400px; /* Fixed width in pixels */
+
+}
+.tooltip-wrap:hover .tooltip-content {
+  display: block;
+}
+</style>
+<div class="tooltip-wrap">
+  <h3>(Help)</h3>
+  <div class="tooltip-content">
+    <p>To alter the rows below, follow these steps:</p>
+    <p>Mark any rows as inactive first. Then hit 'Save and continue editing'</p>
+    <p>To clone a row, enter a number larger than 0 in the 'Copy Count' column. The row will be duplicated N times.  Then hit 'Save and continue editing'.</p>
+    <p>Make sure rows are in the correct order by looking at the 'Scene Number' column. If the rows have been cloned, they can have the same 'Scene Ordering'.</p>
+    <p>If you make some big mistakes, you can always revert to the original positioning by clicking the 'Revert to original state' button.</p>
+  </div>
+</div>
 <div class="js-inline-admin-formset inline-group" id="{{ inline_admin_formset.formset.prefix }}-group"
      data-inline-type="tabular"
      data-inline-formset="{{ inline_admin_formset.inline_formset_data }}">
