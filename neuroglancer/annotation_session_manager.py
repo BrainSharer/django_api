@@ -239,7 +239,7 @@ class AnnotationSessionManager():
             volume.append(volume_slice)
         volume = np.array(volume)
         volume = np.swapaxes(volume, 0, 2) # put it in x,y,z format
-        volume = gaussian(volume, [0, 0, 1])  # this is a float array
+        volume = gaussian(volume, [2, 2, 2])  # this is a float array
         volume[volume > 0] = self.color
         return volume.astype(np.uint16)
 

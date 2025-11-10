@@ -40,7 +40,7 @@ import numpy as np
 from statistics import mode
 from neuroglancer.models import AnnotationSession, BrainRegion, DEBUG, \
     PolygonSequence, StructureCom, PolygonSequence, MarkedCell, get_region_from_abbreviation
-from neuroglancer.atlas import get_scales
+from neuroglancer.contours import get_scales
 from neuroglancer.models import CellType, UNMARKED
 from neuroglancer.contours.annotation_layer import AnnotationLayer, Annotation, random_string
 from neuroglancer.contours.annotation_base import AnnotationBase
