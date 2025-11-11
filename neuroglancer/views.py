@@ -66,7 +66,7 @@ class Segmentation(views.APIView):
     """Method to create a 3D volume from existing annotation
     """
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     
     def get(self, request, session_id):
