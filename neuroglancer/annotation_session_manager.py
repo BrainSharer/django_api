@@ -136,19 +136,10 @@ class AnnotationSessionManager():
     """
 
     def __init__(self, scan_run: ScanRun, label: str) -> None:
-        # 4 lines below are from Aug 4 2025
-        self.resolution = scan_run.resolution
-        self.isotropic = 10 # set volume to be isotropic @ 10um
-        self.downsample_factor = self.isotropic / self.resolution 
-        self.zresolution = self.isotropic
-
-
-
-
-        #xy_resolution = scan_run.resolution
-        #z_resolution = scan_run.zresolution
-        #self.xy_resolution = xy_resolution * ISOTROPIC
-        #self.z_resolution = z_resolution * ISOTROPIC
+        xy_resolution = scan_run.resolution
+        z_resolution = scan_run.zresolution
+        self.xy_resolution = xy_resolution * ISOTROPIC
+        self.z_resolution = z_resolution * ISOTROPIC
         self.label = label
         self.color = self.fetch_color_by_label(self.label)
 
@@ -178,29 +169,14 @@ class AnnotationSessionManager():
             except KeyError:
                 return "No data. Check the data you are sending."
             x0,y0,z0 = lines[0]['pointA']
-            # aug 4 changes
-            x0 = x0 * M_UM_SCALE / self.resolution / self.downsample_factor
-            y0 = y0 * M_UM_SCALE / self.resolution / self.downsample_factor
-            z0 = int(round(z0 * M_UM_SCALE / self.zresolution))
-            
-            
-            
-            #TODOx0 = x0 * M_UM_SCALE / self.xy_resolution
-            #TODOy0 = y0 * M_UM_SCALE / self.xy_resolution
-            #TODOz0 = int(round(z0 * M_UM_SCALE / self.z_resolution))
+            x0 = x0 * M_UM_SCALE / self.xy_resolution
+            y0 = y0 * M_UM_SCALE / self.xy_resolution
+            z0 = int(round(z0 * M_UM_SCALE / self.z_resolution))
             for line in lines:
                 x,y,z = line['pointA']
-                # aug 4 changes
-                x = x * M_UM_SCALE / self.resolution / self.downsample_factor
-                y = y * M_UM_SCALE / self.resolution / self.downsample_factor
-                z = z * M_UM_SCALE / 10
-
-
-
-
-                #TODOx = x * M_UM_SCALE / self.xy_resolution
-                #TODOy = y * M_UM_SCALE / self.xy_resolution
-                #TODOz = z * M_UM_SCALE / self.z_resolution
+                x = x * M_UM_SCALE / self.xy_resolution
+                y = y * M_UM_SCALE / self.xy_resolution
+                z = z * M_UM_SCALE / self.z_resolution
                 xy = (x, y)
                 section = int(np.round(z))
                 polygons[section].append(xy)
@@ -322,12 +298,8 @@ class AnnotationSessionManager():
         output_dir = os.path.join(path, folder_name)
         if os.path.exists(folder_name):
             shutil.rmtree(folder_name)
-        self.resolution = self.resolution * 1000 * self.downsample_factor  # neuroglancer wants it in nm
-        self.zresolution = self.zresolution * 1000
-        scales = [int(self.resolution), int(self.resolution), int(self.zresolution)]
-
         # Neuroglancer wants the scales in nanometers so we multiply by 1000
-        #TODOscales = [int(self.xy_resolution * 1000), int(self.xy_resolution * 1000), int(self.z_resolution * 1000)]
+        scales = [int(self.xy_resolution * 1000), int(self.xy_resolution * 1000), int(self.z_resolution * 1000)]
 
         maker = NgConverter(volume=volume, scales=scales, offset=offset)
         segment_properties = {self.color: label}
