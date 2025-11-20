@@ -50,8 +50,10 @@ def search_annotation(request, search_string=None):
     if search_string:
         rows = SearchSessions.objects\
             .filter(animal_abbreviation_username__icontains=search_string)\
-        .order_by('-updated').order_by('animal_abbreviation_username').distinct()
-        print(rows.query)
+            .exclude(label_type='cell')\
+            .order_by('-updated').order_by('animal_abbreviation_username').distinct()
+        if DEBUG:
+            print(rows.query)
         for row in rows:
             data.append({
                 "id": row.id,

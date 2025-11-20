@@ -109,6 +109,8 @@ class Parsedata:
                     self.show_v2_cloud_annotations(layer)
                 elif layer_type == 'volume':
                     self.show_annotation_json(layer)
+                elif layer_type == "cell":
+                    print(f'layer type is cell, nothing to do')
                 else:
                     print('Select either layer_type=cloud or volume')
 
