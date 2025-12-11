@@ -1,7 +1,7 @@
 """This module defines the serializers for the REST API endpoints.
 """
 from rest_framework import serializers
-from brain.models import Animal
+from brain.models import Animal, SlideCziToTif
 
 class AnimalSerializer(serializers.ModelSerializer):
     """This is a model serializer which means it will serialize all data
@@ -9,3 +9,12 @@ class AnimalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Animal
         fields = '__all__'
+
+
+
+
+class SlideCziToTifSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = SlideCziToTif
+        fields = ('id', 'slide', 'file_name', 'scene_order', 'channel')

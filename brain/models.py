@@ -246,6 +246,7 @@ class Slide(AtlasModel):
     4 scenes (pieces of tissue). This is the parent class to the 
     TIFF (SlideCziToTif) class.
     """
+
     OUTOFFOCUS = 1
     BADTISSUE = 2
     END = 3
@@ -256,32 +257,6 @@ class Slide(AtlasModel):
     slide_physical_id = models.IntegerField()
     slide_status = EnumField(choices=['Bad','Good'], blank=False, null=False)
     scenes = models.IntegerField(validators=[MinValueValidator(0),MaxValueValidator(6)])
-    """ TODO remove these fields as they are no longer used
-    insert_before_one = models.IntegerField(blank=False, null=False, default=0,
-                                            verbose_name='Replicate scene index 0',
-                                            validators=[MinValueValidator(0),MaxValueValidator(5)])
-    insert_between_one_two = models.IntegerField(blank=False, null=False, default=0,
-                                                 verbose_name='Replicate scene index 1',
-                                                 validators=[MinValueValidator(0),MaxValueValidator(5)])
-    insert_between_two_three = models.IntegerField(blank=False, null=False, default=0,
-                                                   verbose_name='Replicate scene index 2',
-                                                   validators=[MinValueValidator(0),MaxValueValidator(5)])
-    insert_between_three_four = models.IntegerField(blank=False, null=False, default=0,
-                                                    verbose_name='Replicate scene index 3',
-                                                    validators=[MinValueValidator(0),MaxValueValidator(5)])
-    insert_between_four_five = models.IntegerField(blank=False, null=False, default=0,
-                                                   verbose_name='Replicate scene index 4',
-                                                   validators=[MinValueValidator(0),MaxValueValidator(5)])
-    insert_between_five_six = models.IntegerField(blank=False, null=False, default=0,
-                                                  verbose_name='Replicate scene index 5',
-                                                  validators=[MinValueValidator(0),MaxValueValidator(5)])
-    insert_between_six_seven = models.IntegerField(blank=False, null=False, default=0,
-                                                  verbose_name='Replicate scene index 6',
-                                                  validators=[MinValueValidator(0),MaxValueValidator(5)])
-    insert_between_seven_eight = models.IntegerField(blank=False, null=False, default=0,
-                                                  verbose_name='Replicate scene index 7',
-                                                  validators=[MinValueValidator(0),MaxValueValidator(5)])
-    """
     file_name = models.CharField(max_length=200)
     checksum = models.CharField(max_length=64, blank=True, null=True)
     comments = models.TextField(max_length=2001, blank=True, null=True)

@@ -140,14 +140,11 @@ class ScanRunAdmin(AtlasAdminModel, ExportCsvMixin):
 
 
 class TifInline(admin.TabularInline):
-    """This class is solely used for the database QA. It will display the 
-    associated TIFF files for each 
-    slide on the slide page.
-
-    :Inheritance:
-        :admin.TabularInline: The class that describes how the data is 
-            laid out on the page.
     """
+    This class describes the inline TIFF files that are associated with each slide.
+    You can order, set inactive, and view each TIFF file associated with a slide.
+    """
+
     model = SlideCziToTif
     fields = ('filename_display','copy_count', 'scene_number', 'active', 'scene_index', 'section_number', 'channel', 
         'scene_image', 'section_image')
@@ -162,11 +159,14 @@ class TifInline(admin.TabularInline):
     def section_number(self, obj) -> str:
         """
         Returns the section number of a given object as a zero-padded string with a ".tif" extension.
+
         Args:
             obj: The object for which the section number is to be determined. It is expected to have 
-                 a related slide, scan_run, and prep_id attributes.
+                a related slide, scan_run, and prep_id attributes.
+        
         Returns:
             str: The section number formatted as a zero-padded string with a ".tif" extension.
+        
         The function performs the following steps:
         1. Retrieves the animal identifier from the object's related slide's scan_run's prep_id.
         2. Fetches the corresponding Histology object using the animal identifier.

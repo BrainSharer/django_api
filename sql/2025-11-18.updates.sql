@@ -4,8 +4,8 @@ DROP VIEW IF EXISTS v_search_sessions;
 CREATE VIEW v_search_sessions AS SELECT
 	AS2.id AS id,
 	CONCAT(AS2.id, ' ', AS2.FK_prep_id, ' ', GROUP_CONCAT(AL.label SEPARATOR ','), ' ', AU.username, ' ', 
-	JSON_EXTRACT(AS2.annotation, '$.type')) AS animal_abbreviation_username,
-	JSON_EXTRACT(AS2.annotation, '$.type') as label_type,
+	JSON_UNQUOTE(JSON_EXTRACT(AS2.annotation, '$.type'))) AS animal_abbreviation_username,
+	JSON_UNQUOTE(JSON_EXTRACT(AS2.annotation, '$.type')) as label_type,
 	DATE_FORMAT(AS2.updated, '%d %b %Y %H:%i') AS updated
 FROM annotation_session AS2
 INNER JOIN annotation_session_labels ASL ON AS2.id = ASL.annotationsession_id

@@ -41,7 +41,6 @@ Use the side navigation panel to view different classes and methods within each 
    REST API serializers <modules/neuroglancer/serializers.rst> 
    Neuroglancer tests <modules/neuroglancer/tests.rst>
    REST API endpoints <modules/neuroglancer/views.rst>
-   Align atlas tools <modules/neuroglancer/atlas.rst>
 
 .. toctree::
    :maxdepth: 1

@@ -1,8 +1,9 @@
 from django.urls import path
-from brain import views
+from brain.views import SlideViewSet, AnimalList, AnimalDetail, ScanResolution
 
 urlpatterns = [
-    path('animals', views.AnimalList.as_view()),
-    path('animal/<str:pk>', views.AnimalDetail.as_view()),
-    path('resolution/<str:prep_id>', views.ScanResolution.as_view())
+    path('animals', AnimalList.as_view()),
+    path('animal/<str:pk>', AnimalDetail.as_view()),
+    path('resolution/<str:prep_id>', ScanResolution.as_view()),
+    path('slides', SlideViewSet.as_view({'get': 'list'})),
 ]

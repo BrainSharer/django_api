@@ -71,7 +71,7 @@ class Segmentation(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     
-    def get(self, request, session_id):
+    def get(self, request, session_id, stdDevX, stdDevY, stdDevZ):
         """Simpler version that does not use slurm or subprocess script
         """
         if DEBUG:
@@ -91,7 +91,7 @@ class Segmentation(views.APIView):
         if not isinstance(polygons, dict):
             return Response({"msg": polygons}, status=status.HTTP_404_NOT_FOUND)
         origin, section_size = annotation_session_manager.get_origin_and_section_size(polygons)
-        volume = annotation_session_manager.create_volume(polygons, origin, section_size)
+        volume = annotation_session_manager.create_volume(polygons, origin, section_size, float(stdDevX), float(stdDevY), float(stdDevZ))
         del polygons
         if volume is None or volume.shape[0] == 0:
             return Response({"msg": "Volume could not be created"}, status=status.HTTP_404_NOT_FOUND)        
@@ -173,6 +173,8 @@ class AnnotationPrivateViewSet(APIView):
             return Response({"detail": f"Annotation data does not exist"}, status=status.HTTP_404_NOT_FOUND)
         
         label_ids = get_label_ids(request.data.get('label'))
+        if len(label_ids) == 0:
+            return Response({"detail": "Label is required"}, status=status.HTTP_400_BAD_REQUEST)
         if DEBUG:
             print(f'label_ids: {label_ids}')
             print(f'annotation animal {existing_session.animal}')

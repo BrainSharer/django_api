@@ -141,14 +141,6 @@ class AnnotationSessionManager():
         self.isotropic = 10 # set volume to be isotropic @ 10um
         self.downsample_factor = self.isotropic / self.resolution 
         self.zresolution = self.isotropic
-
-
-
-
-        #xy_resolution = scan_run.resolution
-        #z_resolution = scan_run.zresolution
-        #self.xy_resolution = xy_resolution * ISOTROPIC
-        #self.z_resolution = z_resolution * ISOTROPIC
         self.label = label
         self.color = self.fetch_color_by_label(self.label)
 
@@ -183,24 +175,12 @@ class AnnotationSessionManager():
             y0 = y0 * M_UM_SCALE / self.resolution / self.downsample_factor
             z0 = int(round(z0 * M_UM_SCALE / self.zresolution))
             
-            
-            
-            #TODOx0 = x0 * M_UM_SCALE / self.xy_resolution
-            #TODOy0 = y0 * M_UM_SCALE / self.xy_resolution
-            #TODOz0 = int(round(z0 * M_UM_SCALE / self.z_resolution))
             for line in lines:
                 x,y,z = line['pointA']
                 # aug 4 changes
                 x = x * M_UM_SCALE / self.resolution / self.downsample_factor
                 y = y * M_UM_SCALE / self.resolution / self.downsample_factor
-                z = z * M_UM_SCALE / 10
-
-
-
-
-                #TODOx = x * M_UM_SCALE / self.xy_resolution
-                #TODOy = y * M_UM_SCALE / self.xy_resolution
-                #TODOz = z * M_UM_SCALE / self.z_resolution
+                z = z * M_UM_SCALE / self.isotropic
                 xy = (x, y)
                 section = int(np.round(z))
                 polygons[section].append(xy)
@@ -215,8 +195,7 @@ class AnnotationSessionManager():
                 points.append(polygons[expanded_section])
             else:
                 polygons[expanded_section] = polygons[expanded_section - 1]
-        len2 = len(polygons)
-        print(f'len1={len1} len2={len2}')
+
         for polygon in polygons:
             points = polygons[polygon]
             if len(points) > 2:
@@ -224,7 +203,7 @@ class AnnotationSessionManager():
                 polygons[polygon] = points
         return polygons
 
-    def create_volume(self, polygons, origin, section_size):
+    def create_volume(self, polygons, origin, section_size, stdDevX=1.0, stdDevY=1.0, stdDevZ=1.0):
         """
         Create a volume from a collection of polygons. Each section contains a polygon which is composed of a list of lines.
         Each line is composed of two points. All these points are fetched in the correct order and used to create the volume.
@@ -263,7 +242,7 @@ class AnnotationSessionManager():
             volume.append(volume_slice)
         volume = np.array(volume)
         volume = np.swapaxes(volume, 0, 2) # put it in x,y,z format
-        volume = gaussian(volume, [1, 1, 2])  # this is a float array
+        volume = gaussian(volume, [stdDevX, stdDevY, stdDevZ])  # this is a float array
         volume[volume > 0] = self.color
         return volume.astype(np.uint16)
 

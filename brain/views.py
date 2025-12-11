@@ -7,8 +7,16 @@ from brain.forms import AnimalForm
 from django.http import Http404, JsonResponse
 from rest_framework import views
 from rest_framework.response import Response
-from brain.serializers import AnimalSerializer
-from brain.models import ScanRun
+from brain.serializers import AnimalSerializer, SlideCziToTifSerializer
+from brain.models import ScanRun, SlideCziToTif
+
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.db import transaction
+from brain.serializers import SlideCziToTif
+from brainsharer.pagination import SlidePagination
+
 
 
 def image_list(request):
@@ -87,3 +95,43 @@ class ScanResolution(views.APIView):
             response = {'resolution': None}
         return JsonResponse(response)
 
+
+
+class SlideViewSet(viewsets.ModelViewSet):
+    queryset = SlideCziToTif.objects.filter(slide__scan_run__prep_id='DK39').order_by('scene_order', 'channel')
+    serializer_class = SlideCziToTifSerializer
+    pagination_class = SlidePagination #
+
+    @action(detail=False, methods=['post'])
+    def reorder(self, request):
+        """
+        Accept payload: { "ordered_ids": [3, 1, 7, ...] }
+        Update the `order` field to match the array index for each id.
+        """
+        ordered_ids = request.data.get('ordered_ids')
+        if not isinstance(ordered_ids, list):
+            return Response({"detail": "ordered_ids must be a list"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+        # Validate all ids exist
+        rows = list(SlideCziToTif.objects.filter(id__in=ordered_ids))
+        id_to_row = {r.id: r for r in rows}
+        missing = [rid for rid in ordered_ids if rid not in id_to_row]
+        if missing:
+            return Response({"detail": f"Some ids not found: {missing}"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+        try:
+            with transaction.atomic():
+                to_update = []
+                for index, rid in enumerate(ordered_ids):
+                    row = id_to_row[rid]
+                    # For stability, only change if different
+                    if row.order != index:
+                        row.order = index
+                        to_update.append(row)
+                if to_update:
+                    SlideCziToTif.objects.bulk_update(to_update, ['order'])
+                    return Response({"status": "ok"})
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
