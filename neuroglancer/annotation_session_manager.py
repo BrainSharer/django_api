@@ -7,6 +7,7 @@ import cv2
 import scipy.interpolate as si
 from skimage.filters import gaussian
 from django.db.models import Count
+from scipy.spatial import cKDTree
 
 from brain.models import ScanRun
 from neuroglancer.contours.ng_segment_maker import NgConverter
@@ -186,7 +187,6 @@ class AnnotationSessionManager():
                 polygons[section].append(xy)
             polygons[z0].append((x0, y0))
 
-        len1 = len(polygons)
         _min = min(polygons.keys())
         _max = max(polygons.keys())
         points = []
@@ -201,6 +201,9 @@ class AnnotationSessionManager():
             if len(points) > 2:
                 points = self.bspliner(points, len(points)*10, degree=3)
                 polygons[polygon] = points
+
+        #####polygons = self.interpolate_all(polygons, num_interp=2)
+
         return polygons
 
     def create_volume(self, polygons, origin, section_size, stdDevX=1.0, stdDevY=1.0, stdDevZ=1.0):
@@ -242,6 +245,8 @@ class AnnotationSessionManager():
             volume.append(volume_slice)
         volume = np.array(volume)
         volume = np.swapaxes(volume, 0, 2) # put it in x,y,z format
+        if DEBUG:
+            print(f'Volume shape before gaussian: {volume.shape} dtype={volume.dtype} with parameters stdDevX: {stdDevX}, stdDevY: {stdDevY}, stdDevZ: {stdDevZ}')
         volume = gaussian(volume, [stdDevX, stdDevY, stdDevZ])  # this is a float array
         volume[volume > 0] = self.color
         return volume.astype(np.uint16)
@@ -400,4 +405,88 @@ class AnnotationSessionManager():
         u = np.linspace(False,(count-degree),n)
 
         # Calculate result
-        return np.array(si.splev(u, (kv,cv.T,degree))).T    
+        return np.array(si.splev(u, (kv,cv.T,degree))).T   
+
+    @staticmethod
+    def match_points(sliceA, sliceB, max_dist=None):
+        """
+        Match points from sliceA to sliceB using nearest-neighbor matching.
+        sliceA, sliceB: (N,2) arrays
+        Returns list of tuples: [(iA, iB), ...]
+        """
+
+        if len(sliceA) == 0 or len(sliceB) == 0:
+            return []
+
+        tree = cKDTree(sliceB)
+        dists, idxs = tree.query(sliceA)
+
+        matches = []
+        for iA, (d,iB) in enumerate(zip(dists, idxs)):
+            if max_dist is None or d <= max_dist:
+                matches.append((iA, iB))
+
+        return matches
+
+    @staticmethod
+    def interpolate_between_slices(z0, pts0, z1, pts1, num_interp=1):
+        """
+        Linearly interpolate point pairs between z0 and z1.
+        Returns dict of z → array of interpolated points.
+        """
+
+        matches = AnnotationSessionManager.match_points(pts0, pts1)
+
+        interpolated = {}
+
+        # Determine the z values to fill between
+        z_vals = np.linspace(z0, z1, num_interp + 2)[1:-1]  # skip endpoints
+
+        for z in z_vals:
+            alpha = (z - z0) / (z1 - z0)
+            interp_pts = []
+
+            for i0, i1 in matches:
+                p0 = pts0[i0]
+                p1 = pts1[i1]
+                pz = (1 - alpha) * p0 + alpha * p1
+                interp_pts.append(pz)
+
+            interpolated[z] = np.vstack(interp_pts) if interp_pts else np.zeros((0,2))
+
+        return interpolated
+
+    @staticmethod
+    def interpolate_all(points_by_z, num_interp=1):
+        """
+        points_by_z: dict {z : (N,2) array of points}
+        num_interp: number of new slices to insert between each pair
+        """
+        result = {}
+        zs = sorted(points_by_z.keys())
+        print(f"Interpolating slices: {zs}")
+
+        startz = zs[0]
+        endz = zs[-1]
+
+        for i in range(startz, endz - 1):
+            try:
+                z0, z1 = zs[i], zs[i+1]
+            except IndexError:
+                continue
+
+            pts0, pts1 = points_by_z[z0], points_by_z[z1]
+
+            # keep original slice
+            result[startz] = pts0
+
+            # interpolate between slices
+            inter = AnnotationSessionManager.interpolate_between_slices(z0, pts0, z1, pts1, num_interp)
+            result.update(inter)
+
+        # also keep last slice
+        result[endz] = points_by_z[zs[-1]]
+        print(f'min key: {min(result.keys())}, max key: {max(result.keys())}')
+
+        return result
+ 

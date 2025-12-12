@@ -76,6 +76,7 @@ class Segmentation(views.APIView):
         """
         if DEBUG:
             start_time = timer()
+            print(f'Segmentation.get with parameters session_id: {session_id}, stdDevX: {stdDevX}, stdDevY: {stdDevY}, stdDevZ: {stdDevZ}')
         try:
             annotationSession = AnnotationSession.objects.get(pk=session_id)
         except AnnotationSession.DoesNotExist:
