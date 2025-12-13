@@ -7,7 +7,9 @@ import cv2
 import scipy.interpolate as si
 from skimage.filters import gaussian
 from django.db.models import Count
+from scipy.interpolate import interp1d
 from scipy.spatial import cKDTree
+import bisect
 
 from brain.models import ScanRun
 from neuroglancer.contours.ng_segment_maker import NgConverter
@@ -139,7 +141,7 @@ class AnnotationSessionManager():
     def __init__(self, scan_run: ScanRun, label: str) -> None:
         # 4 lines below are from Aug 4 2025
         self.resolution = scan_run.resolution
-        self.isotropic = 10 # set volume to be isotropic @ 10um
+        self.isotropic = ISOTROPIC # set volume to be isotropic @ 10um
         self.downsample_factor = self.isotropic / self.resolution 
         self.zresolution = self.isotropic
         self.label = label
@@ -189,20 +191,61 @@ class AnnotationSessionManager():
 
         _min = min(polygons.keys())
         _max = max(polygons.keys())
-        points = []
+        section_range = range(_min, _max)
+        keys = sorted(polygons.keys())
+        """
         for expanded_section in range(_min, _max):
             if expanded_section in polygons.keys():
-                points.append(polygons[expanded_section])
+                fill_from_this_section = expanded_section
             else:
-                polygons[expanded_section] = polygons[expanded_section - 1]
+                pts0 = np.array(polygons[fill_from_this_section])
+                pts1 = np.array(polygons[expanded_section])
+                inter = interpolate_between_slices(expanded_section, pts0, fill_from_this_section, pts1, 1)
+                print(type(inter))
+                polygons[expanded_section] = inter
+        """
+        ##### TODO, cleanup, set interpolation as an option, set 100 to max number of points in polygon
+        for i in section_range:
+            if i not in keys:
+                # find surrounding keys
+                idx = bisect.bisect_left(keys, i)
 
+                # handle bounds safely
+                if idx == 0:
+                    value = polygons[keys[0]]
+                elif idx == len(keys):
+                    value = polygons[keys[-1]]
+                else:
+                    k0, k1 = keys[idx - 1], keys[idx]
+                    v0, v1 = np.array(polygons[k0]), np.array(polygons[k1])
+                    v0 = self.bspliner(v0, 100, degree=3)
+                    v1 = self.bspliner(v1, 100, degree=3)
+
+                    # linear interpolation
+                    t = (i - k0) / (k1 - k0)
+                    value = v0 + t * (v1 - v0)
+
+
+                polygons[i] = value
+
+
+
+        _min = min(polygons.keys())
+        _max = max(polygons.keys())
+        print(f'Min max sections before expansion: {_min}, {_max} and len: {len(polygons.keys())}')
+        """
         for polygon in polygons:
             points = polygons[polygon]
             if len(points) > 2:
                 points = self.bspliner(points, len(points)*10, degree=3)
                 polygons[polygon] = points
-
-        #####polygons = self.interpolate_all(polygons, num_interp=2)
+        
+        #polygons = self.interpolate_slices(polygons, num_interp=10)
+        _min = min(polygons.keys())
+        _max = max(polygons.keys())
+        print(f'Min max sections before expansion: {_min}, {_max} and len: {len(polygons.keys())}')
+        #print(f'Polygons sections: {list(polygons.keys())}')
+        """        
 
         return polygons
 
@@ -408,85 +451,109 @@ class AnnotationSessionManager():
         return np.array(si.splev(u, (kv,cv.T,degree))).T   
 
     @staticmethod
-    def match_points(sliceA, sliceB, max_dist=None):
-        """
-        Match points from sliceA to sliceB using nearest-neighbor matching.
-        sliceA, sliceB: (N,2) arrays
-        Returns list of tuples: [(iA, iB), ...]
-        """
-
-        if len(sliceA) == 0 or len(sliceB) == 0:
-            return []
-
-        tree = cKDTree(sliceB)
-        dists, idxs = tree.query(sliceA)
-
-        matches = []
-        for iA, (d,iB) in enumerate(zip(dists, idxs)):
-            if max_dist is None or d <= max_dist:
-                matches.append((iA, iB))
-
-        return matches
+    def cumulative_length(points):
+        """Return cumulative arc length of an ordered point list."""
+        pts = np.asarray(points)
+        diffs = np.diff(pts, axis=0)
+        seg_lengths = np.linalg.norm(diffs, axis=1)
+        cum_length = np.concatenate([[0], np.cumsum(seg_lengths)])
+        return cum_length / cum_length[-1]  # normalize to [0,1]
 
     @staticmethod
-    def interpolate_between_slices(z0, pts0, z1, pts1, num_interp=1):
-        """
-        Linearly interpolate point pairs between z0 and z1.
-        Returns dict of z → array of interpolated points.
-        """
+    def resample_curve(points, num_samples):
+        """Resample an ordered curve to a fixed number of points."""
+        pts = np.asarray(points)
+        t = AnnotationSessionManager.cumulative_length(pts)
+        
+        fx = interp1d(t, pts[:, 0], kind='linear')
+        fy = interp1d(t, pts[:, 1], kind='linear')
 
-        matches = AnnotationSessionManager.match_points(pts0, pts1)
-
-        interpolated = {}
-
-        # Determine the z values to fill between
-        z_vals = np.linspace(z0, z1, num_interp + 2)[1:-1]  # skip endpoints
-
-        for z in z_vals:
-            alpha = (z - z0) / (z1 - z0)
-            interp_pts = []
-
-            for i0, i1 in matches:
-                p0 = pts0[i0]
-                p1 = pts1[i1]
-                pz = (1 - alpha) * p0 + alpha * p1
-                interp_pts.append(pz)
-
-            interpolated[z] = np.vstack(interp_pts) if interp_pts else np.zeros((0,2))
-
-        return interpolated
+        t_new = np.linspace(0, 1, num_samples)
+        return np.column_stack((fx(t_new), fy(t_new)))
 
     @staticmethod
-    def interpolate_all(points_by_z, num_interp=1):
+    def interpolate_slices(polygons, num_interp=1):
         """
-        points_by_z: dict {z : (N,2) array of points}
-        num_interp: number of new slices to insert between each pair
+        polygons: dict[z] = Nx2 array of points.
+        num_interp:   number of interpolated slices between neighbors.
+
+        Returns:
+            dict[z] = Nx2 array of points.
         """
-        result = {}
-        zs = sorted(points_by_z.keys())
-        print(f"Interpolating slices: {zs}")
+        z_values = list(polygons.keys())
+        slice_points = [polygons[z] for z in z_values]
 
-        startz = zs[0]
-        endz = zs[-1]
 
-        for i in range(startz, endz - 1):
-            try:
-                z0, z1 = zs[i], zs[i+1]
-            except IndexError:
-                continue
+        # Find a common number of points across all slices
+        n_common = max(len(pts) for pts in slice_points)
 
-            pts0, pts1 = points_by_z[z0], points_by_z[z1]
+        # Step 1: resample all slices to same number of points
+        resampled = [AnnotationSessionManager.resample_curve(pts, n_common) for pts in slice_points]
 
-            # keep original slice
-            result[startz] = pts0
+        output = {}
 
-            # interpolate between slices
-            inter = AnnotationSessionManager.interpolate_between_slices(z0, pts0, z1, pts1, num_interp)
-            result.update(inter)
+        # Insert original slices
+        for z, pts in zip(z_values, resampled):
+            output[z] = pts
 
-        # also keep last slice
-        result[endz] = points_by_z[zs[-1]]
-        print(f'min key: {min(result.keys())}, max key: {max(result.keys())}')
+        # Step 2: interpolate between slices
+        for i in range(len(z_values) - 1):
+            z0, z1 = z_values[i], z_values[i+1]
+            p0, p1 = resampled[i], resampled[i+1]
 
-        return result
- 
+            for k in range(1, num_interp + 1):
+                t = k / (num_interp + 1)
+                z_new = z0 + (z1 - z0) * t
+                pts_new = (1 - t) * p0 + t * p1
+                output[z_new] = pts_new
+
+        # Return sorted dictionary by z
+        return dict(sorted(output.items()))
+
+def match_points(sliceA, sliceB, max_dist=None):
+    """
+    Match points from sliceA to sliceB using nearest-neighbor matching.
+    sliceA, sliceB: (N,2) arrays
+    Returns list of tuples: [(iA, iB), ...]
+    """
+
+    if len(sliceA) == 0 or len(sliceB) == 0:
+        return []
+
+    tree = cKDTree(sliceB)
+    dists, idxs = tree.query(sliceA)
+
+    matches = []
+    for iA, (d,iB) in enumerate(zip(dists, idxs)):
+        if max_dist is None or d <= max_dist:
+            matches.append((iA, iB))
+
+    return matches
+
+
+def interpolate_between_slices(z0, pts0, z1, pts1, num_interp=1):
+    """
+    Linearly interpolate point pairs between z0 and z1.
+    Returns dict of z → array of interpolated points.
+    """
+
+    matches = match_points(pts0, pts1)
+
+    interpolated = {}
+
+    # Determine the z values to fill between
+    z_vals = np.linspace(z0, z1, num_interp + 2)[1:-1]  # skip endpoints
+
+    for z in z_vals:
+        alpha = (z - z0) / (z1 - z0)
+        interp_pts = []
+
+        for i0, i1 in matches:
+            p0 = pts0[i0]
+            p1 = pts1[i1]
+            pz = (1 - alpha) * p0 + alpha * p1
+            interp_pts.append(pz)
+
+        #interpolated[z] = np.vstack(interp_pts) if interp_pts else np.zeros((0,2))
+        #interpolated = np.vstack(interp_pts)
+    return interp_pts
