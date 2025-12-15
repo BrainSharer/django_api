@@ -71,7 +71,7 @@ class Segmentation(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     
-    def get(self, request, session_id, stdDevX, stdDevY, stdDevZ):
+    def get(self, request, session_id, stdDevX, stdDevY, stdDevZ, interpolate):
         """Simpler version that does not use slurm or subprocess script
         """
         if DEBUG:
@@ -88,7 +88,7 @@ class Segmentation(views.APIView):
 
         label = annotationSession.labels.first()
         annotation_session_manager = AnnotationSessionManager(scan_run, label)
-        polygons = annotation_session_manager.create_polygons(annotationSession.annotation)
+        polygons = annotation_session_manager.create_polygons(annotationSession.annotation, int(interpolate))
         if not isinstance(polygons, dict):
             return Response({"msg": polygons}, status=status.HTTP_404_NOT_FOUND)
         origin, section_size = annotation_session_manager.get_origin_and_section_size(polygons)

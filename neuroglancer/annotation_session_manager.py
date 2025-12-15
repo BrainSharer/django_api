@@ -143,11 +143,11 @@ class AnnotationSessionManager():
         self.resolution = scan_run.resolution
         self.isotropic = ISOTROPIC # set volume to be isotropic @ 10um
         self.downsample_factor = self.isotropic / self.resolution 
-        self.zresolution = self.isotropic
         self.label = label
         self.color = self.fetch_color_by_label(self.label)
+        print(f'AnnotationSessionManager init: resolution: {self.resolution}, isotropic: {self.isotropic}, downsample_factor: {self.downsample_factor}')
 
-    def create_polygons(self, data: dict):
+    def create_polygons(self, data: dict, interpolate: int = 0) -> dict:
         """
         This gets the row data from the annnotation_session table and creates a dictionary of polygons.
         This dictionary is then used to create a volume.
@@ -174,15 +174,19 @@ class AnnotationSessionManager():
                 return "No data. Check the data you are sending."
             x0,y0,z0 = lines[0]['pointA']
             # aug 4 changes
-            x0 = x0 * M_UM_SCALE / self.resolution / self.downsample_factor
-            y0 = y0 * M_UM_SCALE / self.resolution / self.downsample_factor
-            z0 = int(round(z0 * M_UM_SCALE / self.zresolution))
+            #####TODOx0 = x0 * M_UM_SCALE / self.resolution / self.downsample_factor
+            #####TODOy0 = y0 * M_UM_SCALE / self.resolution / self.downsample_factor
+            x0 = x0 * M_UM_SCALE / self.isotropic
+            y0 = y0 * M_UM_SCALE / self.isotropic
+            z0 = int(round(z0 * M_UM_SCALE / self.isotropic))
             
             for line in lines:
                 x,y,z = line['pointA']
                 # aug 4 changes
-                x = x * M_UM_SCALE / self.resolution / self.downsample_factor
-                y = y * M_UM_SCALE / self.resolution / self.downsample_factor
+                #####TODOx = x * M_UM_SCALE / self.resolution / self.downsample_factor
+                #####TODOy = y * M_UM_SCALE / self.resolution / self.downsample_factor
+                x = x * M_UM_SCALE / self.isotropic
+                y = y * M_UM_SCALE / self.isotropic
                 z = z * M_UM_SCALE / self.isotropic
                 xy = (x, y)
                 section = int(np.round(z))
@@ -193,59 +197,38 @@ class AnnotationSessionManager():
         _max = max(polygons.keys())
         section_range = range(_min, _max)
         keys = sorted(polygons.keys())
-        """
-        for expanded_section in range(_min, _max):
-            if expanded_section in polygons.keys():
-                fill_from_this_section = expanded_section
-            else:
-                pts0 = np.array(polygons[fill_from_this_section])
-                pts1 = np.array(polygons[expanded_section])
-                inter = interpolate_between_slices(expanded_section, pts0, fill_from_this_section, pts1, 1)
-                print(type(inter))
-                polygons[expanded_section] = inter
-        """
-        ##### TODO, cleanup, set interpolation as an option, set 100 to max number of points in polygon
-        for i in section_range:
-            if i not in keys:
-                # find surrounding keys
-                idx = bisect.bisect_left(keys, i)
+        lpoints = max([len(polygons[k]) for k in keys]) * 10
+        # Now either pad or interpolate
+        if interpolate:
+            print(f'Interpolating polygons to have at least {lpoints} points each.')
+            for i in section_range:
+                if i not in keys:
+                    # find surrounding keys
+                    idx = bisect.bisect_left(keys, i)
 
-                # handle bounds safely
-                if idx == 0:
-                    value = polygons[keys[0]]
-                elif idx == len(keys):
-                    value = polygons[keys[-1]]
+                    # handle bounds safely
+                    if idx == 0:
+                        value = polygons[keys[0]]
+                    elif idx == len(keys):
+                        value = polygons[keys[-1]]
+                    else:
+                        k0, k1 = keys[idx - 1], keys[idx]
+                        v0, v1 = np.array(polygons[k0]), np.array(polygons[k1])
+                        v0 = self.bspliner(v0, lpoints, degree=3)
+                        v1 = self.bspliner(v1, lpoints, degree=3)
+                        # linear interpolation
+                        t = (i - k0) / (k1 - k0)
+                        value = v0 + t * (v1 - v0)
+                    polygons[i] = value
+        else:
+            for expanded_section in section_range:
+                if expanded_section in keys:
+                    points = self.bspliner(polygons[expanded_section], lpoints, degree=3)
+                    polygons[expanded_section] = points
                 else:
-                    k0, k1 = keys[idx - 1], keys[idx]
-                    v0, v1 = np.array(polygons[k0]), np.array(polygons[k1])
-                    v0 = self.bspliner(v0, 100, degree=3)
-                    v1 = self.bspliner(v1, 100, degree=3)
+                    points = self.bspliner(polygons[expanded_section - 1], lpoints, degree=3)
+                    polygons[expanded_section] = points
 
-                    # linear interpolation
-                    t = (i - k0) / (k1 - k0)
-                    value = v0 + t * (v1 - v0)
-
-
-                polygons[i] = value
-
-
-
-        _min = min(polygons.keys())
-        _max = max(polygons.keys())
-        print(f'Min max sections before expansion: {_min}, {_max} and len: {len(polygons.keys())}')
-        """
-        for polygon in polygons:
-            points = polygons[polygon]
-            if len(points) > 2:
-                points = self.bspliner(points, len(points)*10, degree=3)
-                polygons[polygon] = points
-        
-        #polygons = self.interpolate_slices(polygons, num_interp=10)
-        _min = min(polygons.keys())
-        _max = max(polygons.keys())
-        print(f'Min max sections before expansion: {_min}, {_max} and len: {len(polygons.keys())}')
-        #print(f'Polygons sections: {list(polygons.keys())}')
-        """        
 
         return polygons
 
@@ -350,8 +333,8 @@ class AnnotationSessionManager():
         if os.path.exists(folder_name):
             shutil.rmtree(folder_name)
         self.resolution = self.resolution * 1000 * self.downsample_factor  # neuroglancer wants it in nm
-        self.zresolution = self.zresolution * 1000
-        scales = [int(self.resolution), int(self.resolution), int(self.zresolution)]
+        #####TODO rm self.zresolution = self.zresolution * 1000
+        scales = [int(self.resolution), int(self.resolution), int(self.isotropic * 1000)]
 
         # Neuroglancer wants the scales in nanometers so we multiply by 1000
         #TODOscales = [int(self.xy_resolution * 1000), int(self.xy_resolution * 1000), int(self.z_resolution * 1000)]
