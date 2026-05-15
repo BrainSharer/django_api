@@ -36,6 +36,7 @@ class CookieMiddleware:
             refresh_access_cookies(response=response, request=request)
         elif not isAuthenticated and access:
             response.delete_cookie('id')
+            response.delete_cookie('admin')
             response.delete_cookie('username')
             response.delete_cookie('access')
             response.delete_cookie('lab')
