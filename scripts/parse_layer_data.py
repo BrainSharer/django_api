@@ -31,7 +31,10 @@ class Parsedata:
         self.debug = debug
 
     def find_clouds(self):
-        datafile = "/home/eddyod/programming/brainsharer/django_api/scripts/hannah.DK55.json"
+        datafile = "./scripts/hannah.DK55.json"
+        if not os.path.exists(datafile):
+            print(f"File {datafile} does not exist, returning ...")
+            return
         with open(datafile, 'r') as file:
             # Load the file content into a Python list
             data = json.load(file)
