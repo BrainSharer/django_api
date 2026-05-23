@@ -108,9 +108,9 @@ def refresh_access_cookies(response: HttpResponse, request: HttpRequest) -> None
     else:
         set_cookie_with_token(response, 'lab', "NA")
     if (isinstance(user, User)) and user.is_staff is True or user.is_superuser is True:
-        set_cookie_with_token(response, 'admin', True)
+        set_cookie_with_token(response, 'admin', "true")
     else:
-        set_cookie_with_token(response, 'admin', False)
+        set_cookie_with_token(response, 'admin', "false")
 
 
 ##### Github stuff, deprecated as github doesn't work well

@@ -367,7 +367,7 @@ class AnnotationDataAdmin(admin.ModelAdmin):
         return labs
     get_labels.short_description = 'Labels'
 
-    def get_queryset(self, request):
+    def get_querysetXXXX(self, request):
         """Returns the query set of points where the layer contains annotations"""
         rows = AnnotationData.objects.filter(active=True)
         return rows

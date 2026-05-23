@@ -18,8 +18,10 @@ django.setup()
 
 
 from brain.models import Animal
-from neuroglancer.models import NeuroglancerState, AnnotationSession
+from neuroglancer.models import AnnotationLabel, NeuroglancerState, AnnotationSession
+from authentication.models import User
 
+M_UM_SCALE = 1000000
 
 class Parsedata:
     def __init__(self, id=None, layer_type=None, layer_name=None, debug=False):
@@ -27,6 +29,79 @@ class Parsedata:
         self.layer_type = layer_type
         self.layer_name = layer_name
         self.debug = debug
+
+    def find_clouds(self):
+        datafile = "/home/eddyod/programming/brainsharer/django_api/scripts/hannah.DK55.json"
+        with open(datafile, 'r') as file:
+            # Load the file content into a Python list
+            data = json.load(file)
+
+        # Loop through the list
+        layers = data['layers']
+        default_props = ["#00ff00", 1, 1, 5, 3, 1]
+        animal = Animal.objects.get(pk="DK55")
+        annotator = User.objects.get(pk=3)
+
+        for layer in layers:
+            if 'annotations' in layer:
+                annotations = layer['annotations']
+                labels = AnnotationLabel.objects.filter(id=92).first()
+                print(f"Layer {layer['name']} has {len(annotations)} annotations")
+                cloud_id = f"{Parsedata.random_string()}"
+                child_ids = []
+                points = []
+                other_rows = []
+                for annotation in annotations:
+                    if 'point' in annotation and 'id' in annotation:
+                        #print(f"\t{annotation['point']}")
+                        x,y,z = annotation["point"]
+                        x = x * 0.325 / M_UM_SCALE
+                        y = y * 0.325 / M_UM_SCALE
+                        z = z * 20 / M_UM_SCALE
+                        point = [x, y, z]
+                        id = annotation.get("id")
+
+                        new_row = {
+                            "point": point,
+                            "type": "point",
+                            "id": f"{id}",
+                            "parentAnnotationId": f"{cloud_id}",
+                            "props": default_props
+                        }
+                        child_ids.append(f"{id}")
+                        other_rows.append(new_row)
+                        points.append(new_row["point"])
+
+                if len(points) == 0:
+                    return
+
+                annotation_json = {}
+                annotation_json["source"] = points[0]
+                annotation_json["centroid"] = np.mean(points, axis=0).tolist()
+                annotation_json["childAnnotationIds"] = child_ids
+                annotation_json["childrenVisible"] = True
+                annotation_json["type"] = "cloud"
+                annotation_json["id"] = f"{cloud_id}"
+                annotation_json["props"] = default_props
+                annotation_json["description"] = f"{layer['name']}"
+                annotation_json["childJsons"] = other_rows
+
+
+                if debug:
+                    pretty_json = json.dumps(annotation_json, indent=4)
+                    print(pretty_json)
+
+                else:
+                    as1 = AnnotationSession.objects.create(animal=animal, active=True, updated=datetime.datetime.now(datetime.timezone.utc), annotator=annotator)
+                    as1.labels.set([labels])
+                    annotation_json["sessionID"] = as1.id
+                    as1.annotation = annotation_json
+                    as1.save()
+                    print(f"Saved cloud annotation session with ID={as1.id} for animal {animal}")
+
+
+
+
 
     def update_neuroglancer_state_animal(self):
         all_states = 0
@@ -41,7 +116,7 @@ class Parsedata:
             all_states += 1
 
             animal = "Allen"
-            pattern = 'data/(\w*)/neuroglancer_data'
+            pattern = r'data/(\w*)/neuroglancer_data'
             neuroglancer_json = state.neuroglancer_state
             image_layers = [layer for layer in neuroglancer_json['layers'] if layer['type'] == 'image']
             if len(image_layers) > 0:
@@ -146,16 +221,17 @@ class Parsedata:
     def show_v1_cloud_annotations(layer):
         name = layer['name']
         annotations = layer['annotations']
-        print(f'Layer={name}')
+        print(f'Layer={name} has {len(annotations)} annotations')
         keys = set()
+        return
         for annotation in annotations:
             #print(annotation.keys())
             keys.add(tuple(annotation.keys()))
             points = [ row['point'] for row in annotations if 'point' in row]
             pointsAB = [ row['pointA'] for row in annotations if 'pointA' in row]
+            print(f'with # cloud points={len(points)}')
+            print(f'with # annotation points={len(pointsAB)}')
         print(keys)
-        print(f'with # cloud points={len(points)}')
-        print(f'with # annotation points={len(pointsAB)}')
 
 
     @staticmethod
@@ -592,6 +668,7 @@ if __name__ == '__main__':
             "fix": pipeline.fix_neuroglancer_state,
             "show": pipeline.show_annotations,
             "fix_animal": pipeline.update_neuroglancer_state_animal,
+            "find_clouds": pipeline.find_clouds,
         }
 
     if task in function_mapping:
