@@ -166,8 +166,9 @@ class TifInlineFormset(BaseInlineFormSet):
         for channel in other_channels:
             channel_filename = instance.file_name.replace('_C1.tif', f'_C{channel}.tif')
             channel_names.append(channel_filename)
-            other_channel = self.model.objects.filter(slide=instance.slide).filter(file_name=channel_filename).filter(active=True).first()
-            other_rows.append(other_channel)
+            other_channel = self.model.objects.filter(slide=instance.slide).filter(file_name=channel_filename).first()
+            if other_channel is not None:
+                other_rows.append(other_channel)
 
         return other_rows
 
