@@ -1,14 +1,3 @@
-select count(*)
-from elastix_transformation where FK_prep_id = 'DK293_TG';
-
-
-SELECT DISTINCT TABLE_NAME 
-FROM INFORMATION_SCHEMA.COLUMNS
-WHERE COLUMN_NAME = 'FK_prep_id'
-  AND TABLE_SCHEMA = 'brainsharer' order by TABLE_NAME; 
-
-show create table neuroglancer_state;
-
 -- drop and re add keys
 -- annotation_session
 ALTER TABLE annotation_session DROP FOREIGN KEY FK__annotation_session_animal;
@@ -33,7 +22,16 @@ FOREIGN KEY (FK_prep_id) REFERENCES animal(prep_id) ON UPDATE CASCADE ON DELETE 
 -- updates
 -- neuroglancer_state
 UPDATE animal SET prep_id = 'DK293_TG_V0' WHERE prep_id = 'DK293_TG';
-UPDATE neuroglancer_state SET prep_id = 'DK293_TG_V0' WHERE prep_id = 'DK293_TG';
+UPDATE neuroglancer_state SET FK_prep_id = 'DK293_TG_V0' WHERE FK_prep_id = 'DK293_TG';
+
+-- tests
+select count(*) from annotation_session where FK_prep_id = 'DK293_TG';
+select count(*) from elastix_transformation where FK_prep_id = 'DK293_TG';
+select count(*) from histology where FK_prep_id = 'DK293_TG';
+select count(*) from injection where FK_prep_id = 'DK293_TG';
+select count(*) from neuroglancer_state where FK_prep_id = 'DK293_TG';
+select count(*) from scan_run where FK_prep_id = 'DK293_TG';
+
 
 
 
