@@ -329,7 +329,9 @@ class AnnotationSession(AtlasModel):
     animal = models.ForeignKey(Animal, models.CASCADE, null=True, db_column="FK_prep_id", verbose_name="Animal")
     labels = models.ManyToManyField(AnnotationLabel, related_name="labels", db_column="annotation_session_id",  verbose_name="Annotation label")
     annotator = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, db_column="FK_user_id",
-                               verbose_name="Annotator", blank=False, null=False)
+                               verbose_name="Annotator", blank=False, null=False, related_name="annotator")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, db_column="FK_updated_by_id",
+                               verbose_name="Updated by", blank=True, null=True, related_name="updated_by")
     annotation = models.JSONField(verbose_name="Annotation")
 
     updated = models.DateTimeField(auto_now=True)

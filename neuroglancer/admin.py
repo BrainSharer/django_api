@@ -257,10 +257,10 @@ class AnnotationDataAdmin(admin.ModelAdmin):
     """This gets data from the annotation session table, not the JSON in the neuroglancer state table
     """
     
-    list_display = ['id', 'animal', 'get_labels', 'get_data', 'annotation_type', 'annotator', 'created', 'updated']
+    list_display = ['id', 'animal', 'get_labels', 'get_data', 'annotation_type', 'annotator', 'updated_by', 'created', 'updated']
     ordering = ['-created', 'annotator']
     list_filter = ['created', 'updated']
-    search_fields = ['animal__prep_id', 'annotator__first_name', 'labels__label']
+    search_fields = ['id', 'animal__prep_id', 'annotator__first_name', 'labels__label']
     readonly_fields = ['created', 'updated']
     exclude = ['annotation']
 
@@ -382,10 +382,6 @@ class AnnotationDataAdmin(admin.ModelAdmin):
         return labs
     get_labels.short_description = 'Labels'
 
-    def get_querysetXXXX(self, request):
-        """Returns the query set of points where the layer contains annotations"""
-        rows = AnnotationData.objects.filter(active=True)
-        return rows
 
     def has_add_permission(self, request, obj=None):
         """Returns false as the data is readonly"""

@@ -171,8 +171,11 @@ class AnnotationPrivateViewSet(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def put(self, request, session_id):
+        if 'annotator' in request.data:
+            del request.data['annotator']
         if DEBUG:
             print('AnnotationPrivateViewSet.put')
+            print(f'AnnotationPrivateViewSet.put request.data: {request.data}')
 
         try:
             existing_session = AnnotationSession.objects.get(pk=session_id)
@@ -189,7 +192,7 @@ class AnnotationPrivateViewSet(APIView):
         if 'animal' not in request.data or request.data['animal'] == 'NA':
             request.data.update({'animal': existing_session.animal})
 
-        serializer = AnnotationModelSerializer(existing_session, data=request.data, partial=False)
+        serializer = AnnotationModelSerializer(existing_session, data=request.data, partial=True)
         # check to make sure the serializer is valid, if so return the ID, if not, return error code.
         if serializer.is_valid():
             serializer.save()
@@ -242,7 +245,7 @@ class NeuroglancerLogViewSet(viewsets.ModelViewSet):
     """
     A viewset for viewing and editing user instances.
     """
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     serializer_class = NeuroglancerLogSerializer
     pagination_class = BigLimitPagination
 
