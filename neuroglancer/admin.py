@@ -19,7 +19,7 @@ import pandas as pd
 from brain.models import ScanRun
 from brainsharer.admin_extensions import AtlasAdminModel, ExportCsvMixin
 from neuroglancer.annotation_session_manager import M_UM_SCALE
-from neuroglancer.models import AnnotationLabel, AnnotationSession, \
+from neuroglancer.models import AnnotationLabel, AnnotationSession, NeuroglancerLog, \
     NeuroglancerState, Points, AnnotationData, resort_points
 from neuroglancer.dash_view import dash_scatter_view
 
@@ -45,6 +45,21 @@ def get_points_in_session(id):
         else:
             points = 1
     return points
+
+@admin.register(NeuroglancerLog)
+class NeuroglancerLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'open_neuroglancer', 'note', 'owner', 'created')
+    list_per_page = 25
+    ordering = ['-created']
+    list_filter = ['created']
+    search_fields = ['id', 'note']
+
+    def open_neuroglancer(self, obj):
+        """This method creates an HTML link that allows the user to access Neuroglancer"""
+        host = settings.NG_URL
+        links = format_html('<a target="_blank" href="{}?id={}">{}</a>', host, obj.state.id, obj.state.comments)
+        return links
+
 
 
 @admin.register(NeuroglancerState)

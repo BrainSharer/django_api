@@ -7,9 +7,9 @@ DROP TABLE IF EXISTS neuroglancer_log;
 CREATE TABLE `neuroglancer_log` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `FK_user_id` int(11) NOT NULL,
-  `FK_state_id` (int(11) NOT NULL,
+  `FK_state_id` int(11) NOT NULL,
   `created` datetime(6) NOT NULL,
-  `change_message` longtext NOT NULL,
+  `note` longtext NOT NULL,
   PRIMARY KEY (`id`),
   KEY `K__FK_user_id` (`FK_user_id`),
   KEY `K__FK_state_id` (`FK_state_id`),

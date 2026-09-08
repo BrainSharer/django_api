@@ -3,7 +3,7 @@
 
 from rest_framework import serializers
 from rest_framework.exceptions import APIException
-from neuroglancer.models import AnnotationLabel, AnnotationSession, NeuroglancerState
+from neuroglancer.models import AnnotationLabel, AnnotationSession, NeuroglancerLog, NeuroglancerState
 from authentication.models import Lab, User
 
 
@@ -39,6 +39,38 @@ class LabelSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     label_type = serializers.CharField()
     label = serializers.CharField()
+
+class NeuroglancerLogSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='owner.username', read_only=True)
+
+    class Meta:
+        model = NeuroglancerLog
+        fields = ['id', 'state', 'note', 'owner', 'created', 'username']
+
+    def create(self, validated_data):
+        """This method gets called when a user clicks New in Neuroglancer
+        """        
+        note = validated_data.get('note', None)
+        state = validated_data.get('state', None)
+        owner = validated_data.get('owner', None)
+        if note is None:
+            raise APIException('Note was not in validated data')
+        if state is None:
+            raise APIException('State ID was not in validated data')
+        if owner is None:
+            raise APIException('Owner was not in validated data')
+        try:
+            new_log = NeuroglancerLog.objects.create(
+                state=state,
+                note=note,
+                owner=owner,
+            )
+        except Exception as e:
+            raise APIException(f'Could not save Neuroglancer log: {str(e)}')
+        return new_log
+
+
+
 
 class NeuroglancerNoStateSerializer(serializers.ModelSerializer):
     """Override method of entering a url into the DB.

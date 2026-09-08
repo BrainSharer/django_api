@@ -230,6 +230,30 @@ class NeuroglancerState(models.Model):
         json.loads(json_repr, object_hook=_decode_dict)  # Return value ignored.
         return results
 
+class NeuroglancerLog(models.Model):
+    """This class model is for the logs associated with a Neuroglancer view.
+    """
+    
+    id = models.BigAutoField(primary_key=True)
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, models.CASCADE, db_column="FK_user_id",
+                               verbose_name="User", blank=False, null=False)
+    state = models.ForeignKey(NeuroglancerState, models.CASCADE, db_column="FK_state_id",
+                               verbose_name="Neuroglancer state", blank=False, null=False)
+    created = models.DateTimeField(auto_now_add=True)
+    note = models.TextField(max_length=2001, blank=False, null=False)
+
+    class Meta:
+        managed = False
+        db_table = 'neuroglancer_log'
+        verbose_name = 'Neuroglancer log'
+        verbose_name_plural = 'Neuroglancer logs'
+
+    @property
+    def username(self):
+        return self.owner.username
+
+    def __str__(self):
+        return f'{self.note}'
 
 class CellType(models.Model):
     """Model corresponding to the cell type table in the database

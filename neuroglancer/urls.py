@@ -1,5 +1,5 @@
 from django.urls import path, include
-from neuroglancer.views import AnnotationPrivateViewSet, NeuroglancerPrivateViewSet, NeuroglancerPublicViewSet,  \
+from neuroglancer.views import AnnotationPrivateViewSet, NeuroglancerLogViewSet, NeuroglancerPrivateViewSet, NeuroglancerPublicViewSet,  \
     Segmentation, get_labels, search_annotation, search_label
 
 from rest_framework import routers
@@ -9,6 +9,7 @@ router = routers.DefaultRouter(trailing_slash=False)
 router.register(r'neuroglancer', NeuroglancerPrivateViewSet, basename='neuroglancer') # private portal data
 router.register(r'neuroglancer/', NeuroglancerPrivateViewSet, basename='neuroglancer_new') # private portal data
 router.register(r'neuroglancers', NeuroglancerPublicViewSet, basename='neuroglancers') # public data
+router.register(r'notes', NeuroglancerLogViewSet, basename='neuroglancer_logs') # private portal data
 
 annotation_urls = [
     path('annotations/labels', get_labels, name='get_labels'),
@@ -20,6 +21,7 @@ annotation_urls = [
     path('annotations/search/<str:search_string>', search_annotation, name='search_annotations'),
     path('annotations/api/<int:session_id>', AnnotationPrivateViewSet.as_view(), name='annotation_session_get_put'),
     path('annotations/api/', AnnotationPrivateViewSet.as_view(), name='annotation_session_post'),
+    #path('notes/', NeuroglancerLogViewSet.as_view(), name='neuroglancer_logs_by_state'),   
 ]
 
 general_urls = [

@@ -4,25 +4,31 @@ is the 'V' in the MVC framework for the Neuroglancer app
 portion of the portal.
 """
 
+from django.db import models
+from django.db.migrations import serializer
 from rest_framework import viewsets, views, permissions, status
-from django.http import JsonResponse
+from django.http import JsonResponse, request
 from django.conf import settings
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.views import APIView
-from rest_framework.pagination import LimitOffsetPagination
+from rest_framework.pagination import LimitOffsetPagination, PageNumberPagination
 from timeit import default_timer as timer
 
 from brain.models import ScanRun
 from neuroglancer.annotation_session_manager import AnnotationSessionManager, get_label_ids
-from neuroglancer.models import AnnotationLabel, AnnotationSession, \
+from neuroglancer.models import AnnotationLabel, AnnotationSession, NeuroglancerLog, \
     NeuroglancerState, SearchSessions
 from neuroglancer.serializers import AnnotationLabelModelSerializer, AnnotationModelSerializer, AnnotationSearchSerializer, AnnotationSessionDataSerializer, \
-    LabelSerializer, NeuroglancerNoStateSerializer, NeuroglancerStateSerializer
+    LabelSerializer, NeuroglancerLogSerializer, NeuroglancerNoStateSerializer, NeuroglancerStateSerializer
 from neuroglancer.models import DEBUG
+from authentication.models import User as AuthUser
 
 
 DEFAULT_ANIMAL = 'AtlasV8'
+
+class BigLimitPagination(PageNumberPagination):
+    page_size = 100              # Default items per page for this view
 
 @api_view(['GET'])
 def get_labels(request):
@@ -64,7 +70,7 @@ def search_annotation(request, search_string=None):
     serializer = AnnotationSearchSerializer(data, many=True)
     return Response(serializer.data)
 
-class Segmentation(views.APIView):
+class Segmentation(APIView):
     """Method to create a 3D volume from existing annotation
     """
 
@@ -231,5 +237,23 @@ class NeuroglancerPrivateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     serializer_class = NeuroglancerStateSerializer
     queryset = NeuroglancerState.objects.all()
+
+class NeuroglancerLogViewSet(viewsets.ModelViewSet):
+    """
+    A viewset for viewing and editing user instances.
+    """
+    permission_classes = [permissions.AllowAny]
+    serializer_class = NeuroglancerLogSerializer
+    pagination_class = BigLimitPagination
+
+    def get_queryset(self):
+        queryset = NeuroglancerLog.objects.order_by('-created').all()
+        state_id = self.request.query_params.get('state_id')
+        print(f'NeuroglancerLogViewSet.get_queryset state_id: {state_id}')
+        if state_id is not None:
+            queryset = queryset.filter(state=state_id)
+        return queryset
+
+
 
 
