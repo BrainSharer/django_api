@@ -48,17 +48,42 @@ def get_points_in_session(id):
 
 @admin.register(NeuroglancerLog)
 class NeuroglancerLogAdmin(admin.ModelAdmin):
-    list_display = ('id', 'open_neuroglancer', 'note', 'owner', 'created')
+    list_display = ('id', 'neuroglancer_id', 'animal_id', 'open_neuroglancer', 'note', 'owner', 'created')
     list_per_page = 25
     ordering = ['-created']
     list_filter = ['created']
     search_fields = ['id', 'note']
 
+    def animal_id(self, obj):
+        return obj.state.animal.prep_id if obj.state.animal is not None else 'NA'
+    
+    def neuroglancer_id(self, obj):
+        return obj.state.id
+    
     def open_neuroglancer(self, obj):
         """This method creates an HTML link that allows the user to access Neuroglancer"""
         host = settings.NG_URL
         links = format_html('<a target="_blank" href="{}?id={}">{}</a>', host, obj.state.id, obj.state.comments)
         return links
+
+
+    def has_delete_permission(self, request, obj=None):
+        """Returns false as the data is readonly"""
+        status = False
+        if obj is not None and obj.owner == request.user:
+            status = True
+        else:
+            status = False
+
+        return status
+
+    def has_add_permission(self, request, obj=None):
+        """Returns false as the data is readonly"""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Returns false as the data is readonly"""
+        return False
 
 
 
