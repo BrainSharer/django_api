@@ -18,3 +18,8 @@ CREATE TABLE `neuroglancer_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 
+select distinct FK_updated_by_id from annotation_session;
+
+desc neuroglancer_state;
+
+select count(*) from neuroglancer_state where FK_prep_id is not null;
