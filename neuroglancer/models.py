@@ -1,12 +1,16 @@
+from collections import defaultdict
+
 from django.db import models
 from django.conf import settings
 from django.utils.html import escape
 import json
+import numpy as np
 import pandas as pd
 from django.template.defaultfilters import truncatechars
 from authentication.models import Lab
 from brain.models import AtlasModel, Animal, ScanRun
 from django_mysql.models import EnumField
+from itertools import zip_longest
 
 LAUREN_ID = 16
 MANUAL = 1
@@ -20,7 +24,6 @@ XUM = f'X{MICRON}'
 YUM = f'Y{MICRON}'
 ZUM = f'Z{MICRON}'
 DEBUG = settings.DEBUG
-
 
 
 class NeuroglancerState(models.Model):
@@ -71,8 +74,6 @@ class NeuroglancerState(models.Model):
                 df = df.round(decimals=0)
         return df
 
-
-
     @property
     def points(self):
         result = None
@@ -84,7 +85,7 @@ class NeuroglancerState(models.Model):
             if scan_run is not None:
                 xy_resolution = scan_run.resolution
                 z_resolution = scan_run.zresolution
-        
+
         if self.neuroglancer_state is not None:
             json_txt = self.neuroglancer_state
             layers = json_txt['layers']
@@ -109,7 +110,7 @@ class NeuroglancerState(models.Model):
                         df = create_one_dataframe(points, name, UUID, 'point', 0, descriptions, xy_resolution, z_resolution)
                         df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
                         dfs.append(df)
-                    
+
                     ##### Finished with non cloud points
                     ##### This is for cloud points
                     cloud_parent_ids = list(set(row["id"] for row in annotations if "id" in row
@@ -141,7 +142,7 @@ class NeuroglancerState(models.Model):
                                        and row['type'] == 'polygon'
                                        and 'parentAnnotationId' in row
                                        and row['parentAnnotationId'] == volume_id]
-                        
+
                         # The description is associated with a volume, not a polygon
                         descriptions = [row["description"] for row in annotations if "description" in row 
                                                 and 'type' in row 
@@ -151,7 +152,8 @@ class NeuroglancerState(models.Model):
                             descriptions = 'unlabeled polygon'
                         else:
                             descriptions = descriptions[0].replace('\n', ', ')
-                        
+
+
                         for UUID in polygon_ids:
                             lines = [row for row in annotations
                                 if "pointA" in row
@@ -183,6 +185,204 @@ class NeuroglancerState(models.Model):
             print(result.head())
 
         result.sort_values(by=['Layer', 'Type', 'Labels', 'UUID', 'Section', 'Order', 'X', 'Y'], inplace=True)
+        return result
+
+
+
+    @property
+    def polygons(self):
+        """
+        Convert Neuroglancer annotation layers into a polygon summary DataFrame.
+
+        Assumptions:
+        - Volume annotations have type='volume' and an 'id'.
+        - Polygon annotations have type='polygon', an 'id', and a
+            'parentAnnotationId' referring to a volume.
+        - Line annotations have type='line', pointA=[x, y, z], and a
+            'parentAnnotationId' referring to a polygon.
+        - Cloud layers contain annotations with type='point' and
+            point=[x, y, z].
+
+        Returns:
+            pandas.DataFrame with OUTPUT_COLUMNS.
+        """
+        if not self.neuroglancer_state:
+            return None
+
+        # Resolve the XY resolution once.
+        xy_resolution = 1.0
+
+        if self.animal is not None and self.animal != "NA":
+            scan_run = ScanRun.objects.filter(prep_id=self.animal).first()
+            if scan_run is not None:
+                xy_resolution = float(scan_run.resolution)
+
+        # Index all annotations in one pass.
+        volume_layers = []
+        cloud_layers = []
+        polygons_by_id = {}
+        polygon_ids_by_volume = defaultdict(list)
+        lines_by_polygon = defaultdict(list)
+
+        for layer in self.neuroglancer_state.get("layers", []):
+            if layer.get("type") != "annotation":
+                continue
+
+            layer_name = layer.get("name", "")
+            annotations = layer.get("annotations") or []
+            description = "NA"
+            for annotation in annotations:
+                annotation_type = annotation.get("type")
+
+                if annotation_type == "volume" and annotation.get("id") is not None:
+                    volume_id = annotation["id"]
+                    description = annotation.get("description", "NA")
+                    volume_layers.append((layer_name, volume_id, description))
+
+                elif annotation_type == "polygon":
+                    polygon_id = annotation.get("id")
+                    parent_id = annotation.get("parentAnnotationId")
+
+                    if polygon_id is not None:
+                        polygons_by_id[polygon_id] = annotation
+
+                        if parent_id is not None:
+                            polygon_ids_by_volume[parent_id].append(polygon_id)
+
+                elif annotation_type == "line":
+                    parent_id = annotation.get("parentAnnotationId")
+                    point = annotation.get("pointA")
+
+                    if (
+                        parent_id is not None
+                        and point is not None
+                        and len(point) >= 3
+                    ):
+                        lines_by_polygon[parent_id].append(point)
+
+                elif annotation_type == "point":
+                    point = annotation.get("point")
+
+                    if point is not None and len(point) >= 3:
+                        # Group points by their originating cloud layer.
+                        # The group is created below from the layer's
+                        # annotation list to retain empty cloud layers too.
+                        pass
+                elif annotation_type == "cloud":
+                    print(layer.keys())
+                    cloud_id = annotation.get("id")
+                    if cloud_id is None:
+                        continue
+                    cloud_points = [
+                        a["point"]
+                        for a in annotations
+                        if a.get("type") == "point"
+                        and a.get("point") is not None
+                        and a.get("parentAnnotationId") == cloud_id
+                    ]
+                    descriptions = [row["description"] for row in annotations if "description" in row 
+                        and 'type' in row 
+                        and row['type'] == 'cloud'
+                        and row['id'] == cloud_id]
+                    if len(descriptions) == 0:
+                        descriptions = 'unlabeled cloud'
+                    else:
+                        descriptions = descriptions[0].replace('\n', ', ')
+
+                    print(f"Found cloud annotation in layer '{layer_name}' with id {cloud_id} description '{descriptions}' and {len(cloud_points)} points")
+                    cloud_layers.append((layer_name, descriptions, cloud_points))
+        # Accommodate cloud layers whose type is represented by their points
+        # rather than by a separate type='cloud' annotation.
+        if not cloud_layers:
+            for layer in self.neuroglancer_state.get("layers", []):
+                if layer.get("type") != "annotation":
+                    continue
+
+                annotations = layer.get("annotations") or []
+                cloud_points = [
+                    a["point"]
+                    for a in annotations
+                    if a.get("type") == "point"
+                    and a.get("point") is not None
+                    and len(a["point"]) >= 3
+                ]
+
+                if cloud_points:
+                    cloud_layers.append((layer.get("name", ""), 'point', cloud_points))
+
+        # Convert each cloud to a NumPy array once, in physical XY units.
+        prepared_clouds = []
+
+        for cloud_layer_name, cloud_name, cloud_points in cloud_layers:
+            if cloud_points:
+                points_array = np.asarray(cloud_points, dtype=np.float64)
+                points_xy = points_array[:, :2] * xy_resolution
+                points_z = points_array[:, 2]
+            else:
+                points_xy = np.empty((0, 2), dtype=np.float64)
+                points_z = np.empty(0, dtype=np.float64)
+
+            prepared_clouds.append(
+                (cloud_layer_name, cloud_name, points_xy, points_z)
+            )
+
+        rows = []
+
+        # Process only polygons belonging to each volume.
+        for layer_name, volume_id, description in volume_layers:
+            for polygon_id in polygon_ids_by_volume.get(volume_id, []):
+                lines = lines_by_polygon.get(polygon_id, [])
+
+                if not lines:
+                    continue
+
+                line_array = np.asarray(lines, dtype=np.float64)
+                polygon_xy = line_array[:, :2] * xy_resolution
+
+                section_value = line_array[0, 2]
+                section_number = int(section_value - 0.5)
+                area = polygon_area(polygon_xy)
+
+                for cloud_layer_name, cloud_name, cloud_xy, cloud_z in prepared_clouds:
+                    # Select only cloud points on this polygon's section.
+                    section_mask = cloud_z == section_value
+                    section_points = cloud_xy[section_mask]
+
+                    #on_section = int(np.count_nonzero(cloud_z == section_value))
+                    on_section = int(np.count_nonzero(section_mask))
+
+                    # Count only points on this section that fall inside the polygon.
+                    in_region = count_points_in_polygon(
+                        section_points,
+                        polygon_xy,
+                    )
+
+                    rows.append({
+                        "Layer": layer_name,
+                        "Volume": description,
+                        "Section": section_number,
+                        "Lines": len(lines),
+                        "Area": area,
+                        "cloud": f'{cloud_layer_name}: {cloud_name}',
+                        "cloud_points_on_section": on_section,
+                        "cloud_points_in_region": in_region,
+                    })
+        OUTPUT_COLUMNS = [
+            "Layer",
+            "Volume",
+            "Section",
+            "Lines",
+            "Area",
+            "cloud",
+            "cloud_points_on_section",
+            "cloud_points_in_region",
+        ]        
+
+        result = pd.DataFrame.from_records(rows, columns=OUTPUT_COLUMNS)
+        #result['Area'] = result['Area'].map('{:,}'.format)
+        result["Area"] = result["Area"].map("{:,.0f}".format)
+        result.sort_values(by=['Layer', 'Volume', 'Section'], inplace=True)
+
         return result
 
     @property
@@ -348,7 +548,7 @@ class AnnotationSession(AtlasModel):
         if self.annotation is not None and 'type' in self.annotation:
             annotation_type = self.annotation['type']
         return annotation_type
-    
+
 
 class AnnotationData(AnnotationSession):
     """Model corresponding to the annotation points table in the database
@@ -399,3 +599,65 @@ def create_one_dataframe(points, name, UUID, data_type='point', orders=0, descri
     df['Yum'] = df['Y'] * xy_resolution
     df['Zum'] = df['Section'] * z_resolution
     return df
+
+def polygon_area(points):
+    """
+    Calculate the area of an irregular polygon using the Shoelace formula.
+    
+    :param points: List of (x, y) coordinate tuples ordered clockwise or counter-clockwise.
+    :return: Float representing the area of the polygon.
+    """
+    n = len(points)
+    if n < 3:
+        raise ValueError("A polygon must have at least 3 points.")
+    
+    area = 0.0
+    for i in range(n):
+        x1, y1 = points[i]
+        x2, y2 = points[(i + 1) % n]  # Wrap around to the first point
+        area += (x1 * y2) - (y1 * x2)
+        
+    return abs(area) / 2.0
+
+def get_annotation_type(annotations):
+    volume_ids = [row['id'] for row in annotations if "id" in row and 'type' in row and row['type'] == 'volume']
+    return 'volume' if volume_ids else 'cloud' if any(row['type'] == 'cloud' for row in annotations) else 'point'
+
+def get_cloud_points_in_section(cloud_points, section):
+    arr = np.array(cloud_points)
+    return np.sum(arr[:, -1] == section)
+
+def count_points_in_polygon(cloud_points, polygon, xy_resolution=1):
+    """
+    Counts how many points fall within a polygon using ray casting.
+    
+    :param cloud_points: List of tuples/lists, e.g., [(x1, y1, z1), (x2, y2, z2), ...]
+    :param polygon: List of tuples/lists defining the vertices, e.g., [(x1, y1), ...]
+    :param xy_resolution: Resolution for x and y coordinates
+    """
+    count = 0
+    num_vertices = len(polygon)
+    
+    for px, py in cloud_points:
+        px *= xy_resolution
+        py *= xy_resolution
+        inside = False
+        p1x, p1y = polygon[0]
+        
+        for i in range(num_vertices + 1):
+            p2x, p2y = polygon[i % num_vertices]
+            
+            # Check if the point is within the y-bounds of the edge
+            if py > min(p1y, p2y) and py <= max(p1y, p2y):
+                # Check if the point is to the left of the edge intersection
+                if px <= max(p1x, p2x):
+                    if p1y != p2y:
+                        x_intersection = (py - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or px <= x_intersection:
+                            inside = not inside
+            p1x, p1y = p2x, p2y
+            
+        if inside:
+            count += 1
+            
+    return count

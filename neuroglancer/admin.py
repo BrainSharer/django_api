@@ -5,7 +5,7 @@ metadata associated with the 'Neuroglancer' app. It does not list the fields (da
 in the models document for the database table model. 
 """
 from django.http import HttpResponse
-from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from django.db import models
 from django.conf import settings
 from django.contrib import admin
@@ -63,7 +63,7 @@ class NeuroglancerLogAdmin(admin.ModelAdmin):
     def open_neuroglancer(self, obj):
         """This method creates an HTML link that allows the user to access Neuroglancer"""
         host = settings.NG_URL
-        links = format_html('<a target="_blank" href="{}?id={}">{}</a>', host, obj.state.id, obj.state.comments)
+        links = mark_safe(f'<a target="_blank" href="{host}?id={obj.state.id}">{obj.state.comments}</a>')
         return links
 
 
@@ -120,7 +120,7 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
     def open_neuroglancer(self, obj):
         """This method creates an HTML link that allows the user to access Neuroglancer"""
         host = settings.NG_URL
-        links = format_html('<a target="_blank" href="{}?id={}">{}</a>', host, obj.id, obj.comments)
+        links = mark_safe(f'<a target="_blank" href="{host}?id={obj.id}">{obj.comments}</a>')
         return links
     
     def public_description(self, obj):
@@ -135,9 +135,8 @@ class NeuroglancerStateAdmin(admin.ModelAdmin):
         """Show a warning to the user if the animal is NULL and hence the state is readonly
         """
         if obj.animal is None:
-            return format_html(
-                '<span style="color: red;">{}</span>',
-                'Animal is missing. Please edit and add the animal.'
+            return mark_safe(
+                '<span style="color: red;">Animal is missing. Please edit and add the animal.</span>',
             )
         else:
             return obj.animal
@@ -171,7 +170,7 @@ class PointsAdmin(admin.ModelAdmin):
         """This method creates an HTML link that allows the user to access Neuroglancer"""
         host = settings.NG_URL
         links = f'<a target="_blank" href="{host}?id={obj.id}">{obj.comments}</a>'
-        return format_html(links)
+        return mark_safe(links)
 
     def created_display(self, obj):
         """Returns a nicely formatted creation date."""
@@ -186,10 +185,10 @@ class PointsAdmin(admin.ModelAdmin):
 
     def show_points_links(self, obj):
         """Shows the HTML for the link to the graph of data."""
-        return format_html(
-            '<a href="{}">3D Graph</a>&nbsp; <a href="{}">Data</a>',
-            reverse('admin:points-3D-graph', args=[obj.pk]),
-            reverse('admin:points-data', args=[obj.pk])
+        return mark_safe(
+            f'<a href="{reverse("admin:points-3D-graph", args=[obj.pk])}">3D Graph</a>&nbsp;' 
+            f'<a href="{reverse("admin:polygon-data", args=[obj.pk])}">Polygon Area/Counts</a>&nbsp;' 
+            f'<a href="{reverse("admin:points-data", args=[obj.pk])}">Data</a>'
         )
 
     def get_urls(self):
@@ -199,6 +198,7 @@ class PointsAdmin(admin.ModelAdmin):
             path(r'scatter/<pk>', dash_scatter_view, name="points-2D-graph"),
             path('points-3D-graph/<id>', self.view_points_3Dgraph,
                  name='points-3D-graph'),
+            path('polygon-data/<id>', self.view_polygon_data, name='polygon-data'),
             path('points-data/<id>', self.view_points_data, name='points-data'),
         ]
         return custom_urls + urls
@@ -240,6 +240,30 @@ class PointsAdmin(admin.ModelAdmin):
         )
         return TemplateResponse(request, "admin/neuroglancer/points_graph.html", context)
 
+    def view_polygon_data(self, request, id, *args, **kwargs):
+        """Provides the HTML link to the polygon area and counts data"""
+        try:
+            neuroglancerState = NeuroglancerState.objects.get(pk=id)
+        except Exception as exc:
+            msg = str(exc)
+            return HttpResponse(status=404, content=msg)
+
+        df = neuroglancerState.polygons
+        result = 'No data'
+        display = False
+        if df is not None and len(df) > 0:
+            display = True
+            result = df.to_html(
+                index=False, classes='table table-striped table-bordered', table_id='tab')
+        context = dict(
+            self.admin_site.each_context(request),
+            title=neuroglancerState.comments,
+            chart=result,
+            display=display,
+            opts=NeuroglancerState._meta,
+        )
+        return TemplateResponse(request, "admin/neuroglancer/polygons_table.html", context)
+    
     def view_points_data(self, request, id, *args, **kwargs):
         """Provides the HTML link to the table data"""
         try:
@@ -290,9 +314,8 @@ class AnnotationDataAdmin(admin.ModelAdmin):
     exclude = ['annotation']
 
     def get_data(self, obj):
-        data_link = format_html(
-            '<a href="{}">Data</a>',
-            reverse('admin:exported-points-data', args=[obj.pk])
+        data_link = mark_safe(
+            f'<a href="{reverse("admin:exported-points-data", args=[obj.pk])}">Data</a>'
         )
         return data_link
     get_data.short_description = 'Data'
