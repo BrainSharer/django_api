@@ -209,13 +209,6 @@ class NeuroglancerState(models.Model):
         if not self.neuroglancer_state:
             return None
 
-        # Resolve the XY resolution once.
-        xy_resolution = 1.0
-
-        if self.animal is not None and self.animal != "NA":
-            scan_run = ScanRun.objects.filter(prep_id=self.animal).first()
-            if scan_run is not None:
-                xy_resolution = float(scan_run.resolution)
 
         # Index all annotations in one pass.
         volume_layers = []
@@ -223,7 +216,10 @@ class NeuroglancerState(models.Model):
         polygons_by_id = {}
         polygon_ids_by_volume = defaultdict(list)
         lines_by_polygon = defaultdict(list)
-
+        dimensions = self.neuroglancer_state.get("dimensions", {"x": [1], "y": [1], "z": [1]})
+        x = dimensions.get("x", [1]) # default to 1 if not found
+        # Resolve the XY resolution once in meters, convert to micrometers.
+        xy_resolution = x[0] * 1e6  # Convert meters to micrometers
         for layer in self.neuroglancer_state.get("layers", []):
             if layer.get("type") != "annotation":
                 continue
@@ -269,7 +265,6 @@ class NeuroglancerState(models.Model):
                         # annotation list to retain empty cloud layers too.
                         pass
                 elif annotation_type == "cloud":
-                    print(layer.keys())
                     cloud_id = annotation.get("id")
                     if cloud_id is None:
                         continue
@@ -289,26 +284,7 @@ class NeuroglancerState(models.Model):
                     else:
                         descriptions = descriptions[0].replace('\n', ', ')
 
-                    print(f"Found cloud annotation in layer '{layer_name}' with id {cloud_id} description '{descriptions}' and {len(cloud_points)} points")
                     cloud_layers.append((layer_name, descriptions, cloud_points))
-        # Accommodate cloud layers whose type is represented by their points
-        # rather than by a separate type='cloud' annotation.
-        if not cloud_layers:
-            for layer in self.neuroglancer_state.get("layers", []):
-                if layer.get("type") != "annotation":
-                    continue
-
-                annotations = layer.get("annotations") or []
-                cloud_points = [
-                    a["point"]
-                    for a in annotations
-                    if a.get("type") == "point"
-                    and a.get("point") is not None
-                    and len(a["point"]) >= 3
-                ]
-
-                if cloud_points:
-                    cloud_layers.append((layer.get("name", ""), 'point', cloud_points))
 
         # Convert each cloud to a NumPy array once, in physical XY units.
         prepared_clouds = []
@@ -322,9 +298,9 @@ class NeuroglancerState(models.Model):
                 points_xy = np.empty((0, 2), dtype=np.float64)
                 points_z = np.empty(0, dtype=np.float64)
 
-            prepared_clouds.append(
-                (cloud_layer_name, cloud_name, points_xy, points_z)
-            )
+            prepared_clouds.append((cloud_layer_name, cloud_name, points_xy, points_z))
+            print(f"Prepared cloud layer '{cloud_layer_name}:{cloud_name}' with {len(points_xy)} points.")
+
 
         rows = []
 
@@ -363,7 +339,7 @@ class NeuroglancerState(models.Model):
                         "Section": section_number,
                         "Lines": len(lines),
                         "Area": area,
-                        "cloud": f'{cloud_layer_name}: {cloud_name}',
+                        "Cloud": f'{cloud_layer_name}: {cloud_name}',
                         "cloud_points_on_section": on_section,
                         "cloud_points_in_region": in_region,
                     })
@@ -373,15 +349,14 @@ class NeuroglancerState(models.Model):
             "Section",
             "Lines",
             "Area",
-            "cloud",
+            "Cloud",
             "cloud_points_on_section",
             "cloud_points_in_region",
         ]        
 
         result = pd.DataFrame.from_records(rows, columns=OUTPUT_COLUMNS)
-        #result['Area'] = result['Area'].map('{:,}'.format)
         result["Area"] = result["Area"].map("{:,.0f}".format)
-        result.sort_values(by=['Layer', 'Volume', 'Section'], inplace=True)
+        result.sort_values(by=['Layer', 'Volume', 'Section', 'Cloud'], inplace=True)
 
         return result
 
