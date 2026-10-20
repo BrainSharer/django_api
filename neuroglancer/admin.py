@@ -262,7 +262,7 @@ class PointsAdmin(admin.ModelAdmin):
             display=display,
             opts=NeuroglancerState._meta,
         )
-        return TemplateResponse(request, "admin/neuroglancer/polygons_table.html", context)
+        return TemplateResponse(request, "admin/neuroglancer/points_table.html", context)
     
     def view_points_data(self, request, id, *args, **kwargs):
         """Provides the HTML link to the table data"""
