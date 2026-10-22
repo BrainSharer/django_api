@@ -171,7 +171,7 @@ class Parsedata:
                     continue
 
                 line_array = np.asarray(lines, dtype=np.float64)
-                polygon_xy = line_array[:, :2] / 32
+                polygon_xy = line_array[:, :2]
                 polygon_mean = np.mean(polygon_xy, axis=0)
 
                 section_value = line_array[0, 2]
@@ -180,7 +180,7 @@ class Parsedata:
                 #print(f"Layer: {layer_name}, Volume ID: {volume_id[0:5]}, Description: {description}, Polygon ID: {polygon_id[0:5]}, Section: {section_number}, Points: {type(polygon_xy)}, Mean: {polygon_mean}")
         animal = state.animal
         print(f"Animal: {animal}, State ID: {state.id}")
-        input_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/{animal}/preps/C2/thumbnail_aligned/"
+        input_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/{animal}/preps/C2/full_aligned/"
         output_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/{animal}/preps/C2/polygons"
         os.makedirs(output_path, exist_ok=True)
         infiles = sorted(os.listdir(input_path))
