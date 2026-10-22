@@ -12,6 +12,8 @@ import datetime
 import numpy as np
 from itertools import zip_longest
 
+from tifffile import tifffile
+
 PATH = Path('.').absolute().as_posix()
 sys.path.append(PATH)
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
@@ -180,7 +182,7 @@ class Parsedata:
                 #print(f"Layer: {layer_name}, Volume ID: {volume_id[0:5]}, Description: {description}, Polygon ID: {polygon_id[0:5]}, Section: {section_number}, Points: {type(polygon_xy)}, Mean: {polygon_mean}")
         animal = state.animal
         print(f"Animal: {animal}, State ID: {state.id}")
-        input_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/{animal}/preps/C2/full_aligned/"
+        input_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/{animal}/preps/C2/full_aligned"
         output_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/{animal}/preps/C2/polygons"
         os.makedirs(output_path, exist_ok=True)
         infiles = sorted(os.listdir(input_path))
@@ -193,7 +195,9 @@ class Parsedata:
                 print(f"File exists, Section: {section_number} Polygon Points: {polygon.shape[0]} points, Mean: {np.mean(polygon, axis=0)} {polygon.dtype=}")
                 image_inpath = os.path.join(input_path, f"{section_number:03d}.tif")
                 image_outpath = os.path.join(output_path, f"{section_number:03d}.tif")
-                image = cv2.imread(image_inpath, cv2.IMREAD_UNCHANGED)
+                with tifffile.TiffFile(image_inpath) as tif:
+                    # Using as_array reads it into a NumPy array efficiently
+                    image = tif.asarray()
 
                 # 3. Create a blank black mask with the same dimensions as the image
                 mask = np.zeros(image.shape, dtype=np.uint16)
@@ -207,7 +211,12 @@ class Parsedata:
                 masked_image = cv2.bitwise_and(image, mask)
 
                 # 6. Save the final masked TIFF file
-                cv2.imwrite(image_outpath, masked_image)
+                tifffile.imwrite(
+                    image_outpath,
+                    masked_image,
+                    photometric="minisblack",
+                    compression="zlib",
+                )
 
         for infile in infiles:
             input_file = os.path.join(input_path, infile)
