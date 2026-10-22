@@ -191,13 +191,13 @@ class Parsedata:
         for section_number, polygon in sorted_dict.items():
             filename = os.path.join(input_path, f"{section_number:03d}.tif")
             if os.path.exists(filename):
-                polygon = polygon.astype(np.int32)
-                print(f"File exists, Section: {section_number} Polygon Points: {polygon.shape[0]} points, Mean: {np.mean(polygon, axis=0)} {polygon.dtype=}")
-                image_inpath = os.path.join(input_path, f"{section_number:03d}.tif")
                 image_outpath = os.path.join(output_path, f"{section_number:03d}.tif")
                 if os.path.exists(image_outpath):
                     print(f"Output file {image_outpath} already exists, skipping ...")
                     continue
+                polygon = polygon.astype(np.int32)
+                print(f"File exists, Section: {section_number} Polygon Points: {polygon.shape[0]} points, Mean: {np.mean(polygon, axis=0)} {polygon.dtype=}")
+                image_inpath = os.path.join(input_path, f"{section_number:03d}.tif")
                 with tifffile.TiffFile(image_inpath) as tif:
                     # Using as_array reads it into a NumPy array efficiently
                     image = tif.asarray()
