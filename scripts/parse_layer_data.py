@@ -4,11 +4,13 @@ import re
 import string
 import os, sys
 import argparse
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
+import cv2
 import django
 import datetime
 import numpy as np
+from itertools import zip_longest
 
 PATH = Path('.').absolute().as_posix()
 sys.path.append(PATH)
@@ -103,8 +105,118 @@ class Parsedata:
                     print(f"Saved cloud annotation session with ID={as1.id} for animal {animal}")
 
 
+    def create_channel(self):
+
+        state = NeuroglancerState.objects.get(pk=self.id)
+        neuroglancer_state = state.neuroglancer_state
 
 
+        # Index all annotations in one pass.
+        volume_layers = []
+        polygons_by_id = {}
+        polygon_ids_by_volume = defaultdict(list)
+        lines_by_polygon = defaultdict(list)
+        polygons_by_section = {}
+        for layer in neuroglancer_state.get("layers", []):
+            if layer.get("type") != "annotation":
+                continue
+            if self.layer_name and layer.get("name") != self.layer_name:
+                print(f'Skipping layer {layer.get("name")} because it does not match the specified layer_name {self.layer_name}')
+                continue
+
+            layer_name = layer.get("name", "")
+            annotations = layer.get("annotations") or []
+            description = "NA"
+            for annotation in annotations:
+                annotation_type = annotation.get("type")
+
+                if annotation_type == "volume" and annotation.get("id") is not None:
+                    volume_id = annotation["id"]
+                    description = annotation.get("description", "NA")
+                    volume_layers.append((layer_name, volume_id, description))
+
+                elif annotation_type == "polygon":
+                    polygon_id = annotation.get("id")
+                    parent_id = annotation.get("parentAnnotationId")
+
+                    if polygon_id is not None:
+                        polygons_by_id[polygon_id] = annotation
+
+                        if parent_id is not None:
+                            polygon_ids_by_volume[parent_id].append(polygon_id)
+
+                elif annotation_type == "line":
+                    parent_id = annotation.get("parentAnnotationId")
+                    point = annotation.get("pointA")
+
+                    if (
+                        parent_id is not None
+                        and point is not None
+                        and len(point) >= 3
+                    ):
+                        lines_by_polygon[parent_id].append(point)
+
+
+                else:
+                    print(f"Skipping annotation type '{annotation_type}' in layer '{layer_name}'")
+                    continue
+
+        rows = []
+        # Process only polygons belonging to each volume.
+        for layer_name, volume_id, description in volume_layers:
+            for polygon_id in polygon_ids_by_volume.get(volume_id, []):
+                lines = lines_by_polygon.get(polygon_id, [])
+
+                if not lines:
+                    continue
+
+                line_array = np.asarray(lines, dtype=np.float64)
+                polygon_xy = line_array[:, :2] / 32
+                polygon_mean = np.mean(polygon_xy, axis=0)
+
+                section_value = line_array[0, 2]
+                section_number = int(section_value - 0.5)
+                polygons_by_section[section_number] = polygon_xy
+                #print(f"Layer: {layer_name}, Volume ID: {volume_id[0:5]}, Description: {description}, Polygon ID: {polygon_id[0:5]}, Section: {section_number}, Points: {type(polygon_xy)}, Mean: {polygon_mean}")
+        animal = state.animal
+        print(f"Animal: {animal}, State ID: {state.id}")
+        input_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/{animal}/preps/C2/thumbnail_aligned/"
+        output_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/{animal}/preps/C2/polygons"
+        os.makedirs(output_path, exist_ok=True)
+        infiles = sorted(os.listdir(input_path))
+        outfiles = sorted(os.listdir(output_path))
+        sorted_dict = dict(sorted(polygons_by_section.items()))
+        for section_number, polygon in sorted_dict.items():
+            filename = os.path.join(input_path, f"{section_number:03d}.tif")
+            if os.path.exists(filename):
+                polygon = polygon.astype(np.int32)
+                print(f"File exists, Section: {section_number} Polygon Points: {polygon.shape[0]} points, Mean: {np.mean(polygon, axis=0)} {polygon.dtype=}")
+                image_inpath = os.path.join(input_path, f"{section_number:03d}.tif")
+                image_outpath = os.path.join(output_path, f"{section_number:03d}.tif")
+                image = cv2.imread(image_inpath, cv2.IMREAD_UNCHANGED)
+
+                # 3. Create a blank black mask with the same dimensions as the image
+                mask = np.zeros(image.shape, dtype=np.uint16)
+
+                # 4. Fill the ROI polygon on the mask with white (255)
+                # Use cv2.fillPoly for a single polygon or a list of polygons
+                cv2.fillPoly(mask, [polygon], 65535)
+
+                # 5. Apply the mask using a bitwise AND operation
+                # Everything outside the ROI becomes 0
+                masked_image = cv2.bitwise_and(image, mask)
+
+                # 6. Save the final masked TIFF file
+                cv2.imwrite(image_outpath, masked_image)
+
+        for infile in infiles:
+            input_file = os.path.join(input_path, infile)
+            test_file = os.path.join(os.path.join(output_path, infile))
+            if not os.path.exists(test_file):
+                image = cv2.imread(input_file, cv2.IMREAD_UNCHANGED)
+                mask = np.zeros(image.shape, dtype=np.uint16)
+                cv2.imwrite(test_file, mask)
+                print(f"Creating empty image at: {test_file}")
 
     def update_neuroglancer_state_animal(self):
         all_states = 0
@@ -672,6 +784,7 @@ if __name__ == '__main__':
             "show": pipeline.show_annotations,
             "fix_animal": pipeline.update_neuroglancer_state_animal,
             "find_clouds": pipeline.find_clouds,
+            "create_channel": pipeline.create_channel,
         }
 
     if task in function_mapping:
