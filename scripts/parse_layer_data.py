@@ -195,6 +195,9 @@ class Parsedata:
                 print(f"File exists, Section: {section_number} Polygon Points: {polygon.shape[0]} points, Mean: {np.mean(polygon, axis=0)} {polygon.dtype=}")
                 image_inpath = os.path.join(input_path, f"{section_number:03d}.tif")
                 image_outpath = os.path.join(output_path, f"{section_number:03d}.tif")
+                if os.path.exists(image_outpath):
+                    print(f"Output file {image_outpath} already exists, skipping ...")
+                    continue
                 with tifffile.TiffFile(image_inpath) as tif:
                     # Using as_array reads it into a NumPy array efficiently
                     image = tif.asarray()
@@ -222,9 +225,11 @@ class Parsedata:
             input_file = os.path.join(input_path, infile)
             test_file = os.path.join(os.path.join(output_path, infile))
             if not os.path.exists(test_file):
-                image = cv2.imread(input_file, cv2.IMREAD_UNCHANGED)
+                with tifffile.TiffFile(image_inpath) as tif:
+                    # Using as_array reads it into a NumPy array efficiently
+                    image = tif.asarray()
                 mask = np.zeros(image.shape, dtype=np.uint16)
-                cv2.imwrite(test_file, mask)
+                tifffile.imwrite(test_file, mask)
                 print(f"Creating empty image at: {test_file}")
 
     def update_neuroglancer_state_animal(self):
