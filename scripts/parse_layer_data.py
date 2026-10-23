@@ -327,7 +327,8 @@ class Parsedata:
                 if area > 0:
                     #print(f"Rank {i+1}: Area = {32*0.325*area:.2f} um image area {32*0.325*image_size:.2f} % {100*(area/image_size):.4f}")
                     print(f"Rank {i+1}: Area = {1*0.325*area:.2f} {MICRON}m")
-                    cv2.drawContours(empty, contour, -1, 65535, 1)
+                    cv2.drawContours(empty, contour, -1, 65535, 2)
+                    cv2.fillPoly(empty, [contour], 65535)
             cv2.imwrite('/tmp/014.drawn.tif', empty)
 
     def update_neuroglancer_state_animal(self):
