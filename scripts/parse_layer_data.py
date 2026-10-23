@@ -21,7 +21,7 @@ django.setup()
 
 
 from brain.models import Animal
-from neuroglancer.models import AnnotationLabel, NeuroglancerState, AnnotationSession
+from neuroglancer.models import AnnotationLabel, NeuroglancerState, AnnotationSession, polygon_area
 from authentication.models import User
 
 M_UM_SCALE = 1000000
@@ -239,6 +239,7 @@ class Parsedata:
                 print(f"Creating empty image at: {test_file}")
 
         self.histogram_maker()
+        self.find_contours()
 
     def histogram_maker(self):
         input_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/polygons")
@@ -249,6 +250,11 @@ class Parsedata:
         os.makedirs(output_path, exist_ok=True)
         infiles = sorted(os.listdir(input_path))
         for infile in infiles:
+            pngfile = infile.replace("tif", "png")
+            outfile_path = os.path.join(output_path, pngfile)
+            if os.path.exists(outfile_path):
+                print(f'Histogram already exists: {outfile_path}')
+                continue
             image_inpath = os.path.join(input_path, infile)
             with tifffile.TiffFile(image_inpath) as tif:
                 image = tif.asarray()
@@ -269,12 +275,54 @@ class Parsedata:
             ax.set_ylabel("Frequency")
             ax.set_title(f"ROI in {infile}", fontsize=8)
             plt.style.use("ggplot")
-            infile = infile.replace("tif", "png")
-            outfile_path = os.path.join(output_path, infile)
             fig.savefig(outfile_path, bbox_inches="tight")
             plt.close(fig)
             print(f'Wrote histogram to: {outfile_path}')
 
+    def find_contours(self):
+
+        input_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/polygons")
+        if not os.path.exists(input_path):
+            print(f'Input path missing: {input_path}')
+            exit(1)
+        output_path = os.path.join(self.prep_path, f"{self.animal}/www/histogram/roi_contours")
+        os.makedirs(output_path, exist_ok=True)
+        infiles = sorted(os.listdir(input_path))
+        for infile in infiles:
+            image_inpath = os.path.join(input_path, infile)
+            with tifffile.TiffFile(image_inpath) as tif:
+                image = tif.asarray()
+
+
+            flat = image[image > 0]
+            ids, counts = np.unique(flat, return_counts=True)
+            valid_mask = counts > 10
+
+            # 4. Filter the IDs using the mask
+            filtered_ids = ids[valid_mask]
+
+            # 5. Extract the lowest and highest IDs
+            # (np.unique returns sorted IDs, so we can just grab the first and last elements)
+
+            if len(filtered_ids) > 0:
+                lowest_id = filtered_ids[0]
+            else:
+                continue
+
+            lower_bound = int(lowest_id)
+            upper_bound = int(flat.max())
+            mask = cv2.inRange(flat, lower_bound, upper_bound)
+
+            # 3. Find the contours in the 8-bit binary mask
+            # cv2.RETR_EXTERNAL finds only the outermost contours. Use cv2.RETR_TREE if you need hierarchies.
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+
+            if infile == "014.tif":
+                print(f"Found {len(contours)} contours in {infile} with values ranging from {lower_bound} -> {upper_bound}.")
+                sorted_contours = sorted(contours, key=cv2.contourArea, reverse=True)
+                for i, contour in enumerate(sorted_contours):
+                    print(f"Rank {i+1}: Area = {cv2.contourArea(contour):.12f} px")
 
     def update_neuroglancer_state_animal(self):
         all_states = 0
