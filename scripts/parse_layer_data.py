@@ -289,6 +289,9 @@ class Parsedata:
         os.makedirs(output_path, exist_ok=True)
         infiles = sorted(os.listdir(input_path))
         for infile in infiles:
+            if infile != "014.tif":
+                continue
+
             image_inpath = os.path.join(input_path, infile)
             with tifffile.TiffFile(image_inpath) as tif:
                 image = tif.asarray()
@@ -314,19 +317,18 @@ class Parsedata:
             sorted_contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
 
-
-            if infile == "014.tif":
-                print('mask ids', ids)
-                print('mask counts', counts)
-                print(f"Found {len(contours)} contours in {infile} with values ranging from {lower_bound} -> {upper_bound}.")
-                sorted_contours = sorted(contours, key=cv2.contourArea, reverse=True)
-                for i, contour in enumerate(sorted_contours):
-                    area = cv2.contourArea(contour)
-                    if area > 0:
-                        #print(f"Rank {i+1}: Area = {32*0.325*area:.2f} um image area {32*0.325*image_size:.2f} % {100*(area/image_size):.4f}")
-                        print(f"Rank {i+1}: Area = {1*0.325*area:.2f} {MICRON}m")
-                        cv2.drawContours(image, contour, -1, 65535, 1)
-                cv2.imwrite('/tmp/014.drawn.tif', image)
+            empty = np.zeros_like(image)
+            print('mask ids', ids)
+            print('mask counts', counts)
+            print(f"Found {len(contours)} contours in {infile} with values ranging from {lower_bound} -> {upper_bound}.")
+            sorted_contours = sorted(contours, key=cv2.contourArea, reverse=True)
+            for i, contour in enumerate(sorted_contours):
+                area = cv2.contourArea(contour)
+                if area > 0:
+                    #print(f"Rank {i+1}: Area = {32*0.325*area:.2f} um image area {32*0.325*image_size:.2f} % {100*(area/image_size):.4f}")
+                    print(f"Rank {i+1}: Area = {1*0.325*area:.2f} {MICRON}m")
+                    cv2.drawContours(empty, contour, -1, 65535, 1)
+            cv2.imwrite('/tmp/014.drawn.empty.tif', image)
 
     def update_neuroglancer_state_animal(self):
         all_states = 0
