@@ -10,8 +10,7 @@ import cv2
 import django
 import datetime
 import numpy as np
-from itertools import zip_longest
-
+from matplotlib import pyplot as plt
 from tifffile import tifffile
 
 PATH = Path('.').absolute().as_posix()
@@ -28,11 +27,15 @@ from authentication.models import User
 M_UM_SCALE = 1000000
 
 class Parsedata:
-    def __init__(self, id=None, layer_type=None, layer_name=None, debug=False):
+    def __init__(self, id=None, layer_type=None, layer_name=None, downsample=True, debug=False):
         self.id = id
         self.layer_type = layer_type
         self.layer_name = layer_name
         self.debug = debug
+        self.animal = None
+        self.downsample = downsample
+        self.prep_path = "/net/birdstore/Active_Atlas_Data/data_root/pipeline_data"
+
 
     def find_clouds(self):
         datafile = "./scripts/hannah.DK55.json"
@@ -112,7 +115,6 @@ class Parsedata:
         state = NeuroglancerState.objects.get(pk=self.id)
         neuroglancer_state = state.neuroglancer_state
 
-
         # Index all annotations in one pass.
         volume_layers = []
         polygons_by_id = {}
@@ -173,33 +175,38 @@ class Parsedata:
                     continue
 
                 line_array = np.asarray(lines, dtype=np.float64)
-                polygon_xy = line_array[:, :2]
-                polygon_mean = np.mean(polygon_xy, axis=0)
+                if self.downsample == "thumbnail":
+                    divisor = 32
+                else:
+                    divisor = 1
+                polygon_xy = line_array[:, :2] / divisor
 
                 section_value = line_array[0, 2]
                 section_number = int(section_value - 0.5)
                 polygons_by_section[section_number] = polygon_xy
                 #print(f"Layer: {layer_name}, Volume ID: {volume_id[0:5]}, Description: {description}, Polygon ID: {polygon_id[0:5]}, Section: {section_number}, Points: {type(polygon_xy)}, Mean: {polygon_mean}")
-        animal = state.animal
-        print(f"Animal: {animal}, State ID: {state.id}")
-        input_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/{animal}/preps/C2/full_aligned"
-        output_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/{animal}/preps/C2/polygons"
+        self.animal = state.animal
+        print(f"Animal: {self.animal}, State ID: {state.id}")
+        input_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/{self.downsample}_aligned")
+        if not os.path.exists(input_path):
+            print(f'Input path missing: {input_path}')
+            exit(1)
+        output_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/polygons")
         os.makedirs(output_path, exist_ok=True)
         infiles = sorted(os.listdir(input_path))
-        outfiles = sorted(os.listdir(output_path))
         sorted_dict = dict(sorted(polygons_by_section.items()))
         for section_number, polygon in sorted_dict.items():
-            filename = os.path.join(input_path, f"{section_number:03d}.tif")
+            tifname = f"{section_number:03d}.tif"
+            filename = os.path.join(input_path, tifname)
             if os.path.exists(filename):
-                image_outpath = os.path.join(output_path, f"{section_number:03d}.tif")
+                image_outpath = os.path.join(output_path, tifname)
                 if os.path.exists(image_outpath):
                     print(f"Output file {image_outpath} already exists, skipping ...")
                     continue
                 polygon = polygon.astype(np.int32)
                 print(f"File exists, Section: {section_number} Polygon Points: {polygon.shape[0]} points, Mean: {np.mean(polygon, axis=0)} {polygon.dtype=}")
-                image_inpath = os.path.join(input_path, f"{section_number:03d}.tif")
+                image_inpath = os.path.join(input_path, tifname)
                 with tifffile.TiffFile(image_inpath) as tif:
-                    # Using as_array reads it into a NumPy array efficiently
                     image = tif.asarray()
 
                 # 3. Create a blank black mask with the same dimensions as the image
@@ -218,11 +225,10 @@ class Parsedata:
                     image_outpath,
                     masked_image,
                     photometric="minisblack",
-                    compression="zlib",
+                    compression="LZW",
                 )
 
         for infile in infiles:
-            input_file = os.path.join(input_path, infile)
             test_file = os.path.join(os.path.join(output_path, infile))
             if not os.path.exists(test_file):
                 with tifffile.TiffFile(image_inpath) as tif:
@@ -231,6 +237,44 @@ class Parsedata:
                 mask = np.zeros(image.shape, dtype=np.uint16)
                 tifffile.imwrite(test_file, mask)
                 print(f"Creating empty image at: {test_file}")
+
+        self.histogram_maker()
+
+    def histogram_maker(self):
+        input_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/polygons")
+        if not os.path.exists(input_path):
+            print(f'Input path missing: {input_path}')
+            exit(1)
+        output_path = os.path.join(self.prep_path, f"{self.animal}/www/histogram/roi")
+        os.makedirs(output_path, exist_ok=True)
+        infiles = sorted(os.listdir(input_path))
+        for infile in infiles:
+            image_inpath = os.path.join(input_path, infile)
+            with tifffile.TiffFile(image_inpath) as tif:
+                image = tif.asarray()
+
+            # Filter out zero values and flatten
+            flat = image[image > 0].ravel()
+            
+            # Create and save histogram
+            fig, ax = plt.subplots(figsize=(10, 6))
+            try:
+                ax.hist(flat, bins=200, range=(0, flat.max()), color="r")
+            except:
+                plt.close(fig)
+                continue
+            #ax.set_yscale('log')
+            ax.grid(axis="y", alpha=0.75)
+            ax.set_xlabel("Value")
+            ax.set_ylabel("Frequency")
+            ax.set_title(f"ROI in {infile}", fontsize=8)
+            plt.style.use("ggplot")
+            infile = infile.replace("tif", "png")
+            outfile_path = os.path.join(output_path, infile)
+            fig.savefig(outfile_path, bbox_inches="tight")
+            plt.close(fig)
+            print(f'Wrote histogram to: {outfile_path}')
+
 
     def update_neuroglancer_state_animal(self):
         all_states = 0
@@ -778,8 +822,8 @@ if __name__ == '__main__':
     parser.add_argument('--id', help='Enter ID', required=False, default=None, type=int)
     parser.add_argument('--task', help='Enter task', required=True, type=str)
     parser.add_argument('--layer_type', help='Enter layer type', required=False, type=str)   
-    parser.add_argument('--layer_name', help='Enter layer name', required=False, type=str)   
-
+    parser.add_argument('--layer_name', help='Enter layer name', required=False, type=str)
+    parser.add_argument("--downsample", help="Enter 'full' or 'thumbnail'", required=False, default="true", type=str, choices=("full", "thumbnail"))
     parser.add_argument('--debug', required=False, default='false', type=str)
 
     args = parser.parse_args()
@@ -787,10 +831,11 @@ if __name__ == '__main__':
     task = str(args.task).strip().lower()
     layer_type = str(args.layer_type).strip()
     layer_name = str(args.layer_name).strip()
+    downsample = args.downsample.lower().strip()
     debug = bool({'true': True, 'false': False}[args.debug.lower()])    
     id = args.id
 
-    pipeline = Parsedata(id=id, layer_type=layer_type, layer_name=layer_name, debug=debug)
+    pipeline = Parsedata(id=id, layer_type=layer_type, layer_name=layer_name, downsample=downsample, debug=debug)
 
     function_mapping = {
             "session": pipeline.parse_annotation,
