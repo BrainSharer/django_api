@@ -1,3 +1,4 @@
+import glob
 from itertools import chain
 import json
 import math
@@ -14,6 +15,9 @@ import datetime
 import numpy as np
 from matplotlib import pyplot as plt
 from tifffile import tifffile
+from tqdm import tqdm
+from skimage.morphology import remove_small_objects
+from scipy.signal import savgol_filter
 
 PATH = Path('.').absolute().as_posix()
 sys.path.append(PATH)
@@ -109,6 +113,49 @@ class Parsedata:
                     as1.save()
                     print(f"Saved cloud annotation session with ID={as1.id} for animal {animal}")
 
+    def create_axons(self, img):
+        positive_data = img[img > 0]
+        # Calculate log-spaced bins for an even distribution on a log-axis
+        num_bins = 150
+        bins = np.logspace(np.log10(positive_data.min()), np.log10(positive_data.max()), num=num_bins)
+        counts, edges = np.histogram(positive_data, bins=bins)
+
+        # Calculate centers of the bins in linear and log scales
+        bin_centers = 10**((np.log10(edges[:-1]) + np.log10(edges[1:])) / 2)
+
+        # --- 2. Transform into Log-Log Space for Derivative Analysis ---
+        # Ignore bins with 0 counts to prevent mathematical errors
+        valid = counts > 0
+        log_x = np.log10(bin_centers[valid])
+        log_y = np.log10(counts[valid])
+
+        # --- 3. Smooth & Calculate Derivatives with SciPy ---
+        # savgol_filter smooths data while preserving the location of local extrema/inflections
+        # Adjust window_length if your histogram is excessively noisy (must be odd)
+        window_length = 35 
+        polyorder = 3
+
+        smoothed_log_y = savgol_filter(log_y, window_length, polyorder)
+
+        # First and Second Derivatives relative to log(intensity)
+        dy_dx = np.gradient(smoothed_log_y, log_x)
+        d2y_dx2 = np.gradient(dy_dx, log_x)
+
+        # --- 4. Automatically Extract the Separation Point ---
+        # The noise peak is the largest mass. The separation occurs *after* this peak drops off.
+        noise_peak_idx = np.argmax(smoothed_log_y)
+
+        # Find where the 2nd derivative crosses 0 (changes sign) after the peak
+        zero_crossings = np.where(np.diff(np.sign(d2y_dx2[noise_peak_idx:])))[0] + noise_peak_idx
+        threshold = zero_crossings[0]
+        img[img < threshold] = 0
+        #ids, counts = np.unique(img, return_counts=True)
+        #print('ids', ids)
+        #print('counts',counts)
+
+        return img, threshold
+
+
     def create_channel(self):
 
         state = NeuroglancerState.objects.get(pk=self.id)
@@ -188,7 +235,7 @@ class Parsedata:
         if not os.path.exists(input_path):
             print(f'Input path missing: {input_path}')
             exit(1)
-        output_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/polygons")
+        output_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/axons")
         os.makedirs(output_path, exist_ok=True)
         infiles = sorted(os.listdir(input_path))
         sorted_dict = dict(sorted(polygons_by_section.items()))
@@ -212,16 +259,18 @@ class Parsedata:
                 masked_image = cv2.bitwise_and(image, mask)
                 x, y, w, h = cv2.boundingRect(polygon)
                 cropped_image = masked_image[y:y+h, x:x+w]
+                axon_image, threshold = self.create_axons(cropped_image)
+                masked_image[y:y+h, x:x+w] = axon_image
 
                 tifffile.imwrite(
                     image_outpath,
-                    cropped_image,
+                    masked_image,
                     photometric="minisblack",
                     compression="LZW",
                 )
-                print(f"Section: {section_number} Polygon Points: {polygon.shape[0]} points, Mean: {np.round(np.mean(polygon, axis=0),2)}", end=" ")
+                print(f"Section: {section_number}  {threshold=}", end=" ")
                 print(f'Wrote: {image_outpath}')
-        return
+
         for infile in infiles:
             test_file = os.path.join(os.path.join(output_path, infile))
             if not os.path.exists(test_file):
@@ -236,49 +285,53 @@ class Parsedata:
         # self.find_contours()
 
     def create_roi(self):
-        infile = "014.tif"
+        # take total number of pixels, divide by threshold and count the pixel
+        # show histogram to show where to set inflection point
+        # show 4 plots, histogram
         image_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/DK283/preps/C2"
-        image_inpath = os.path.join(image_path, 'polygons', infile)
-        with tifffile.TiffFile(image_inpath) as tif:
-            img = tif.asarray()
+        image_inpath = os.path.join(image_path, 'polygons')
+        files = sorted(os.listdir(image_inpath))
+        for file in files[0:15]:
+            filepath = os.path.join(image_inpath, file)
+            with tifffile.TiffFile(filepath) as tif:
+                img = tif.asarray()
 
-        min_val = int(np.min(img))
-        max_val = int(np.max(img))
-        print(f'min value {min_val} max: {max_val}')
+            min_val = int(np.min(img))
+            max_val = int(np.max(img))
+            step = 100
+            thresholds = np.arange(min_val, max_val + step, step)
+            pixel_sums = [np.sum(img[img > t].astype(np.int64)) for t in thresholds]
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.plot(thresholds, pixel_sums, color='darkviolet', linewidth=2)
+            ax.set_title(f'{file} Log Sum of Brightness Values vs. Threshold (Active Range: {min_val}:{max_val})', fontsize=12, fontweight='bold')
+            ax.set_xlabel('Threshold Value (Filtered to Active Range)', fontsize=12)
+            ax.set_ylabel('Sum of Brightness Intensities', fontsize=12)
+            ax.grid(True, linestyle='--', alpha=0.6)
+            ax.set_yscale('log')
+            ax.set_xscale('log')
+            ax.set_xlim(min_val, max_val)
+            outfile_path = os.path.join(image_path, 'testing', 'intensities', file)
+            fig.savefig(outfile_path, bbox_inches="tight")
+            plt.close(fig)
+            print(f'Wrote active range to: {outfile_path}')
+            
+            # Create and save histogram
+            fig, ax = plt.subplots(figsize=(10, 6))
+            ax.hist(img.ravel(), bins=2000, range=(min_val, max_val), color="r")
+            ax.set_yscale('log')
+            ax.set_xscale('log')
+            ax.grid(axis="y", alpha=0.75)
+            ax.set_xlabel("Value")
+            ax.set_ylabel("Frequency")
+            ax.set_title(f"{file} Histogram ROI", fontsize=8)
+            plt.style.use("ggplot")
+            outfile_path = os.path.join(image_path, 'testing', 'histograms', file)
+            fig.savefig(outfile_path, bbox_inches="tight")
+            plt.close(fig)
+            print(f'Wrote histogram to: {outfile_path}')
         return
-        step = 100
-        thresholds = np.arange(min_val, max_val + step, step)
-        pixel_sums = [np.sum(img[img > t].astype(np.int64)) for t in thresholds]
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.plot(thresholds, pixel_sums, color='darkviolet', linewidth=2)
-        ax.set_title(f'Sum of Brightness Values vs. Threshold (Active Range: {min_val}:{max_val})', fontsize=12, fontweight='bold')
-        ax.set_xlabel('Threshold Value (Filtered to Active Range)', fontsize=12)
-        ax.set_ylabel('Sum of Brightness Intensities', fontsize=12)
-        ax.grid(True, linestyle='--', alpha=0.6)
-        ax.set_yscale('log')
-        ax.set_xlim(min_val, max_val)
-        pngfile = "014.cumulative_intensities_active_range.png"
-        outfile_path = os.path.join(image_path, 'testing', pngfile)
-        fig.savefig(outfile_path, bbox_inches="tight")
-        plt.close(fig)
-        print(f'Wrote active range to: {outfile_path}')
-        
-        # Create and save histogram
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.hist(img.ravel(), bins=2000, range=(min_val, max_val), color="r")
-        ax.set_yscale('log')
-        ax.grid(axis="y", alpha=0.75)
-        ax.set_xlabel("Value")
-        ax.set_ylabel("Frequency")
-        ax.set_title(f"Histogram ROI", fontsize=8)
-        plt.style.use("ggplot")
-        pngfile = "014.histogram.log.png"
-        outfile_path = os.path.join(image_path, 'testing', pngfile)
-        fig.savefig(outfile_path, bbox_inches="tight")
-        plt.close(fig)
-        print(f'Wrote histogram to: {outfile_path}')
         ##### Start thresholded images
-        range1 = range(0,1000, 20)
+        range1 = range(0,1000, 50)
         range2 = range(1200, int(img.max()), 200)
         combined = chain(range1, range2)
 
@@ -294,7 +347,7 @@ class Parsedata:
             #adjusted = np.clip(modified_values, 0, 65535).astype(np.uint16)
             str_threshold = str(threshold).zfill(5)
             clipname = f"{str_threshold}.tif"
-            output_path = os.path.join(image_path, "thresholds", clipname)
+            output_path = os.path.join(image_path, "testing", "thresholds", clipname)
             cv2.imwrite(output_path, int8_arr)
             print(f' to {output_path}')
 
@@ -810,8 +863,21 @@ class Parsedata:
         fig.savefig(outpath, bbox_inches="tight")
         print(f'Wrote combined histogram to {outpath}')
 
-        stack = np.stack(file_data, axis=0)
-        combined_image = np.sum(stack, axis=0)
+        ### Load irregular shaped images
+        tif_files = sorted(glob.glob(os.path.join(input_path, "*.tif")))
+        images = [tifffile.imread(f) for f in tif_files]
+
+        # Find maximum dimensions across all images
+        max_h = max(img.shape[0] for img in images)
+        max_w = max(img.shape[1] for img in images)
+        combined_image = np.zeros((len(images), max_h, max_w), dtype=images[0].dtype)
+        # Pad and insert each image
+        for i, img in enumerate(images):
+            h, w = img.shape[0], img.shape[1]
+            combined_image[i, :h, :w] = img
+
+        print("Combined uniform array shape:", combined_image.shape)        
+
         
         # 3. Determine the dynamic range of the combined image
         min_val = int(np.min(combined_image))
@@ -819,12 +885,12 @@ class Parsedata:
         print(f"Combined image range: Min={min_val}, Max={max_val}")
         
         # Define thresholds to test
-        thresholds = np.arange(min_val, max_val + 1, 10)
+        thresholds = np.arange(min_val, max_val + 1, 100)
         brightness_sums = []
     
         # 4. Calculate total brightness for each threshold
         print("Calculating brightness sums for each threshold...")
-        for t in thresholds:
+        for t in tqdm(thresholds):
             # Get pixels above the current threshold
             above_threshold = combined_image[combined_image > t]
             # Sum their intensities
@@ -843,7 +909,6 @@ class Parsedata:
         fig.savefig(outfile_path, bbox_inches="tight")
         plt.close(fig)
         print(f'Wrote active range to: {outfile_path}')
-
 
 
 
@@ -1496,7 +1561,7 @@ if __name__ == '__main__':
             "create_channel": pipeline.create_channel,
             "create_roi": pipeline.create_roi,
             "axon_detector": pipeline.axon_detector,
-            "combined_histogram_maker": pipeline.combined_histogram_maker
+            "combined_histogram_maker": pipeline.combined_histogram_maker,
         }
 
     if task in function_mapping:
