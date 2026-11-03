@@ -147,13 +147,18 @@ class Parsedata:
 
         # Find where the 2nd derivative crosses 0 (changes sign) after the peak
         zero_crossings = np.where(np.diff(np.sign(d2y_dx2[noise_peak_idx:])))[0] + noise_peak_idx
-        threshold = zero_crossings[0]
-        img[img < threshold] = 0
+        try:
+            inflection_idx = zero_crossings[2]
+        except IndexError:
+            inflection_idx = zero_crossings[1]
+
+        axon_threshold = 10**log_x[inflection_idx]        
+        img[img < axon_threshold] = 0
         #ids, counts = np.unique(img, return_counts=True)
         #print('ids', ids)
         #print('counts',counts)
 
-        return img, threshold
+        return img, axon_threshold
 
 
     def create_channel(self):
