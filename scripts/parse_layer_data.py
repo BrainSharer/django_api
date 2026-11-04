@@ -148,9 +148,10 @@ class Parsedata:
         # Find where the 2nd derivative crosses 0 (changes sign) after the peak
         zero_crossings = np.where(np.diff(np.sign(d2y_dx2[noise_peak_idx:])))[0] + noise_peak_idx
         try:
-            inflection_idx = zero_crossings[2]
+            inflection_idx = zero_crossings[0]
         except IndexError:
-            inflection_idx = zero_crossings[1]
+            print(f'Got index error')
+            inflection_idx = 100
 
         axon_threshold = 10**log_x[inflection_idx]        
         img[img < axon_threshold] = 0
@@ -160,7 +161,33 @@ class Parsedata:
 
         return img, axon_threshold
 
+    @staticmethod
+    def remove_white_objects(img_16bit, thresh_value, min_size=10):
+        # Set an appropriate intensity threshold (e.g., 50000 out of 65535, or use your own value)
+        _, binary_mask = cv2.threshold(img_16bit, thresh_value, 1, cv2.THRESH_BINARY)
+        binary_mask = binary_mask.astype(np.uint8)
+        
+        # 3. Apply Connected Component Analysis
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary_mask)
+        
+        # Define the minimum area (in pixels) for an object to be kept
+        
+        # Create a mask for objects to keep
+        keep_mask = np.zeros_like(binary_mask)
+        
+        for i in range(1, num_labels):  # Skip background label 0
+            area = stats[i, cv2.CC_STAT_AREA]
+            if area >= min_size:
+                keep_mask[labels == i] = 1
+        
+        # 4. Remove small objects from the original 16-bit image
+        # Set pixels belonging to small objects to background intensity (e.g., 0 or local background)
+        background_val = 0
+        cleaned_img = img_16bit.copy()
+        cleaned_img[(binary_mask == 1) & (keep_mask == 0)] = background_val
+        return cleaned_img
 
+    
     def create_channel(self):
 
         state = NeuroglancerState.objects.get(pk=self.id)
@@ -265,6 +292,7 @@ class Parsedata:
                 x, y, w, h = cv2.boundingRect(polygon)
                 cropped_image = masked_image[y:y+h, x:x+w]
                 axon_image, threshold = self.create_axons(cropped_image)
+                axon_image = self.remove_white_objects(axon_image, threshold, min_size=150)
                 masked_image[y:y+h, x:x+w] = axon_image
 
                 tifffile.imwrite(
