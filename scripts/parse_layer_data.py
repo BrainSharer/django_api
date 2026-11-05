@@ -113,53 +113,81 @@ class Parsedata:
                     as1.save()
                     print(f"Saved cloud annotation session with ID={as1.id} for animal {animal}")
 
-    def create_axons(self, img):
+    @staticmethod
+    def extract_axon_threshold(img, intensity_range=None):
+        """
+        Extracts the axon separation threshold from a noisy image histogram using the maximum 
+        value of the second derivative after the dominant background noise peak.
+        
+        Parameters:
+        -----------
+        data : numpy.ndarray
+            The input image array (contains structural zeros, noise, and sparse high-intensity axons).
+        intensity_range : tuple (min_val, max_val), optional
+            The intensity window to look inside for the noise distribution. Helps isolate 
+            the true noise floor if the histogram contains multiple irrelevant mini-peaks.
+            
+        Returns:
+        --------
+        float
+            The calculated intensity threshold value separating axons from background noise.
+        """
+        # 1. Strip structural zeros out to prevent log(0) calculation errors
         positive_data = img[img > 0]
-        # Calculate log-spaced bins for an even distribution on a log-axis
-        num_bins = 150
-        bins = np.logspace(np.log10(positive_data.min()), np.log10(positive_data.max()), num=num_bins)
+        # 2. Establish global bin boundaries based on data range
+        global_min = positive_data.min()
+        global_max = positive_data.max()
+        
+        bins = np.logspace(np.log10(global_min), np.log10(global_max), num=150)
         counts, edges = np.histogram(positive_data, bins=bins)
-
-        # Calculate centers of the bins in linear and log scales
         bin_centers = 10**((np.log10(edges[:-1]) + np.log10(edges[1:])) / 2)
 
-        # --- 2. Transform into Log-Log Space for Derivative Analysis ---
-        # Ignore bins with 0 counts to prevent mathematical errors
+        # 3. Project to log-log space for robust geometrical analysis
         valid = counts > 0
         log_x = np.log10(bin_centers[valid])
         log_y = np.log10(counts[valid])
+        window_length = 15
 
-        # --- 3. Smooth & Calculate Derivatives with SciPy ---
-        # savgol_filter smooths data while preserving the location of local extrema/inflections
-        # Adjust window_length if your histogram is excessively noisy (must be odd)
-        window_length = 35 
-        polyorder = 3
+        # 4. Smooth and compute derivatives via SciPy
+        if window_length >= len(log_y):
+            window_length = len(log_y) - 2 if (len(log_y) - 2) % 2 != 0 else len(log_y) - 3
+            window_length = max(3, window_length)
 
-        smoothed_log_y = savgol_filter(log_y, window_length, polyorder)
-
-        # First and Second Derivatives relative to log(intensity)
+        smoothed_log_y = savgol_filter(log_y, window_length, 3)
         dy_dx = np.gradient(smoothed_log_y, log_x)
         d2y_dx2 = np.gradient(dy_dx, log_x)
 
-        # --- 4. Automatically Extract the Separation Point ---
-        # The noise peak is the largest mass. The separation occurs *after* this peak drops off.
-        noise_peak_idx = np.argmax(smoothed_log_y)
+        # 5. Constrain peak search to the user-defined intensity range window
+        if intensity_range is not None:
+            min_bound, max_bound = intensity_range
+            search_mask = (10**log_x >= min_bound) & (10**log_x <= max_bound)
+            
+            if not np.any(search_mask):
+                raise ValueError(f"No histogram bins found within the intensity range: {intensity_range}")
+                
+            relative_peak_idx = np.argmax(smoothed_log_y[search_mask])
+            absolute_indices = np.where(search_mask)[0]  # Flatten tuple to array index list
+            noise_peak_idx = absolute_indices[relative_peak_idx]
+        else:
+            noise_peak_idx = np.argmax(smoothed_log_y)
 
-        # Find where the 2nd derivative crosses 0 (changes sign) after the peak
-        zero_crossings = np.where(np.diff(np.sign(d2y_dx2[noise_peak_idx:])))[0] + noise_peak_idx
-        try:
-            inflection_idx = zero_crossings[0]
-        except IndexError:
-            print(f'Got index error')
-            inflection_idx = 100
+        # 6. Extract maximum 2nd derivative occurring *after* the selected peak
+        post_peak_d2y = d2y_dx2[noise_peak_idx:]
+        
+        if len(post_peak_d2y) == 0:
+            raise ValueError("Selected intensity range peak sits at the edge of data; cannot trace decay.")
+            
+        max_curvature_relative_idx = np.argmax(post_peak_d2y)
+        inflection_idx = noise_peak_idx + max_curvature_relative_idx
 
-        axon_threshold = 10**log_x[inflection_idx]        
+        # 7. Reverse the logarithm base-10 scale
+        #axon_threshold = 10**log_x[inflection_idx]
+        axon_threshold = 10**log_x[noise_peak_idx]
+        #print('max_curvature_relative_idx', 10**log_x[max_curvature_relative_idx])
+        #print('noise_peak_idx', 10**log_x[noise_peak_idx])      
         img[img < axon_threshold] = 0
-        #ids, counts = np.unique(img, return_counts=True)
-        #print('ids', ids)
-        #print('counts',counts)
 
-        return img, axon_threshold
+        return img, float(axon_threshold)
 
     @staticmethod
     def remove_white_objects(img_16bit, thresh_value, min_size=10):
@@ -268,7 +296,9 @@ class Parsedata:
             print(f'Input path missing: {input_path}')
             exit(1)
         output_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/axons")
+        cropped_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/cropped")
         os.makedirs(output_path, exist_ok=True)
+        os.makedirs(cropped_path, exist_ok=True)
         infiles = sorted(os.listdir(input_path))
         sorted_dict = dict(sorted(polygons_by_section.items()))
         for section_number, polygon in sorted_dict.items():
@@ -276,9 +306,7 @@ class Parsedata:
             filename = os.path.join(input_path, tifname)
             if os.path.exists(filename):
                 image_outpath = os.path.join(output_path, tifname)
-                if os.path.exists(image_outpath):
-                    print(f"Output file {image_outpath} already exists, skipping ...")
-                    continue
+                cropped_outpath = os.path.join(cropped_path, tifname)
                 polygon = polygon.astype(np.int32)
                 image_inpath = os.path.join(input_path, tifname)
                 with tifffile.TiffFile(image_inpath) as tif:
@@ -291,19 +319,31 @@ class Parsedata:
                 masked_image = cv2.bitwise_and(image, mask)
                 x, y, w, h = cv2.boundingRect(polygon)
                 cropped_image = masked_image[y:y+h, x:x+w]
-                axon_image, threshold = self.create_axons(cropped_image)
-                axon_image = self.remove_white_objects(axon_image, threshold, min_size=150)
+                #ids, counts = np.unique(cropped_image, return_counts=True)
+                #print(f"Section: {section_number} {cropped_image.dtype=} {cropped_image.shape=} {cropped_image.max()=}")
+                #print(f"{x=}, {y=}, {w=}, {h=}")
+                #print('ids', ids)
+                #print('counts', counts)
+                tifffile.imwrite(
+                    cropped_outpath,
+                    cropped_image,
+                    bigtiff=True,
+                    photometric="minisblack",
+                    compression="LZW",
+                )
+                axon_image, threshold = self.extract_axon_threshold(cropped_image, intensity_range=(200,3000))
+                axon_image = self.remove_white_objects(axon_image, threshold, min_size=10)
                 masked_image[y:y+h, x:x+w] = axon_image
 
                 tifffile.imwrite(
                     image_outpath,
                     masked_image,
+                    bigtiff=True,
                     photometric="minisblack",
                     compression="LZW",
                 )
-                print(f"Section: {section_number}  {threshold=}", end=" ")
-                print(f'Wrote: {image_outpath}')
-
+                print(f'{threshold=}, Wrote: {cropped_outpath}')
+        return
         for infile in infiles:
             test_file = os.path.join(os.path.join(output_path, infile))
             if not os.path.exists(test_file):
@@ -321,6 +361,7 @@ class Parsedata:
         # take total number of pixels, divide by threshold and count the pixel
         # show histogram to show where to set inflection point
         # show 4 plots, histogram
+        # take peak of 2nd derivate for inflection
         image_path = f"/net/birdstore/Active_Atlas_Data/data_root/pipeline_data/DK283/preps/C2"
         image_inpath = os.path.join(image_path, 'polygons')
         files = sorted(os.listdir(image_inpath))
@@ -1093,6 +1134,35 @@ class Parsedata:
                 if self.layer_type == "volume":
                     self.fix_and_update_volume_annotation_data(state.id, layer_id)
 
+    def parse_boxes(self):
+        if self.id > 0:
+            try:
+                state = NeuroglancerState.objects.get(pk=self.id)
+            except NeuroglancerState.DoesNotExist:
+                print(f'ID={self.id} not found, returning ...')
+                return
+        else:
+            print('No ID was provided, returning ...')
+            return
+
+        if self.layer_name is None:
+            print('No layer_name was provided, returning ...')
+            return
+
+
+        print(state.id, state.comments)
+        existing_state = state.neuroglancer_state # big JSON
+        layers = existing_state['layers'] # list of dictionaries
+        for i, layer in enumerate(layers): # layers is a list
+            if 'name' in layer.keys() and 'annotations' in layer.keys():
+                if layer.get('name') == self.layer_name:
+                    boxes = layer.get('annotations')
+                    for i, box in enumerate(boxes):
+                        if box.get('type') == 'axis_aligned_bounding_box':
+                            pointA = box.get('pointA')
+                            pointB = box.get('pointB')
+                            print(i, pointA, pointB)
+
     def show_annotations(self):
         if self.id > 0:
             try:
@@ -1114,8 +1184,8 @@ class Parsedata:
                     self.show_v2_cloud_annotations(layer)
                 elif layer_type == 'volume':
                     self.show_annotation_json(layer)
-                elif layer_type == "cell":
-                    print(f'layer type is cell, nothing to do')
+                elif layer_type == "box":
+                    self.show_annotation_json(layer)
                 else:
                     print('Select either layer_type=cloud or volume')
 
@@ -1142,6 +1212,9 @@ class Parsedata:
                 # print(f'child IDS={annotation.get("childAnnotationIds")}')
                 print(f'\t# lines={number_of_children} child IDS={child_ids[:5]}')
             if annotation_type == 'line':
+                print(f'\t\tAnnotation type={annotation_type} parentID={parent_id}', end=' ')
+                print(f'\t\tid={annotation.get("id")} description={annotation.get("description")}')
+            if annotation_type == 'axis_aligned_bounding_box':
                 print(f'\t\tAnnotation type={annotation_type} parentID={parent_id}', end=' ')
                 print(f'\t\tid={annotation.get("id")} description={annotation.get("description")}')
 
@@ -1595,6 +1668,7 @@ if __name__ == '__main__':
             "create_roi": pipeline.create_roi,
             "axon_detector": pipeline.axon_detector,
             "combined_histogram_maker": pipeline.combined_histogram_maker,
+            "boxes": pipeline.parse_boxes
         }
 
     if task in function_mapping:
