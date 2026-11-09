@@ -17,7 +17,8 @@ from matplotlib import pyplot as plt
 from tifffile import tifffile
 from tqdm import tqdm
 from skimage.morphology import remove_small_objects
-from scipy.signal import savgol_filter
+from scipy.ndimage import gaussian_filter1d
+from scipy.stats import gaussian_kde
 
 PATH = Path('.').absolute().as_posix()
 sys.path.append(PATH)
@@ -114,7 +115,7 @@ class Parsedata:
                     print(f"Saved cloud annotation session with ID={as1.id} for animal {animal}")
 
     @staticmethod
-    def extract_axon_threshold(img, intensity_range=None):
+    def extract_axon_threshold(img):
         """
         Extracts the axon separation threshold from a noisy image histogram using the maximum 
         value of the second derivative after the dominant background noise peak.
@@ -132,59 +133,46 @@ class Parsedata:
         float
             The calculated intensity threshold value separating axons from background noise.
         """
-        # 1. Strip structural zeros out to prevent log(0) calculation errors
-        positive_data = img[img > 0]
-        # 2. Establish global bin boundaries based on data range
-        global_min = positive_data.min()
-        global_max = positive_data.max()
-        
-        bins = np.logspace(np.log10(global_min), np.log10(global_max), num=150)
-        counts, edges = np.histogram(positive_data, bins=bins)
-        bin_centers = 10**((np.log10(edges[:-1]) + np.log10(edges[1:])) / 2)
+        foreground_data = img[img > 0]
+        num_bins = 100
+        bins = np.logspace(np.log10(foreground_data.min()), np.log10(foreground_data.max()), num_bins)
+        counts, bin_edges = np.histogram(foreground_data, bins=bins)
 
-        # 3. Project to log-log space for robust geometrical analysis
-        valid = counts > 0
-        log_x = np.log10(bin_centers[valid])
-        log_y = np.log10(counts[valid])
-        window_length = 15
+        log_bin_centers = 0.5 * (np.log10(bin_edges[:-1]) + np.log10(bin_edges[1:]))
+        bin_centers = 10 ** log_bin_centers
+        log_counts = np.log10(counts + 1)
 
-        # 4. Smooth and compute derivatives via SciPy
-        if window_length >= len(log_y):
-            window_length = len(log_y) - 2 if (len(log_y) - 2) % 2 != 0 else len(log_y) - 3
-            window_length = max(3, window_length)
+        # Smooth to get clear, continuous derivative curves
+        smooth_log_counts = gaussian_filter1d(log_counts, sigma=2.0)
+        dy_dx = np.gradient(smooth_log_counts, log_bin_centers)
+        d2y_dx2 = np.gradient(dy_dx, log_bin_centers)
 
-        smoothed_log_y = savgol_filter(log_y, window_length, 3)
-        dy_dx = np.gradient(smoothed_log_y, log_x)
-        d2y_dx2 = np.gradient(dy_dx, log_x)
+        # =====================================================================
+        # FEATURE 1: Inflection point at the noise peak
+        # =====================================================================
+        # Step A: Locate the absolute maximum peak of the noise (usually at lower intensities)
+        kde_x = np.linspace(foreground_data.min(), np.percentile(foreground_data, 90), 500)
+        kde_y = gaussian_kde(foreground_data)(kde_x)
 
-        # 5. Constrain peak search to the user-defined intensity range window
-        if intensity_range is not None:
-            min_bound, max_bound = intensity_range
-            search_mask = (10**log_x >= min_bound) & (10**log_x <= max_bound)
-            
-            if not np.any(search_mask):
-                raise ValueError(f"No histogram bins found within the intensity range: {intensity_range}")
-                
-            relative_peak_idx = np.argmax(smoothed_log_y[search_mask])
-            absolute_indices = np.where(search_mask)[0]  # Flatten tuple to array index list
-            noise_peak_idx = absolute_indices[relative_peak_idx]
+        # The maximum of the density curve is your noise peak
+        noise_floor_limit = kde_x[np.argmax(kde_y)]        
+
+        noise_indices = np.where(bin_centers < noise_floor_limit)[0]
+        noise_peak_idx = noise_indices[np.argmax(smooth_log_counts[noise_indices])]
+        #noise_peak_x = bin_centers[noise_peak_idx]
+
+        # Step B: Find the inflection point on the descending slope of this peak (where d2y_dx2 crosses 0)
+        # Look forward from the peak index
+        zero_crossings = np.where(np.diff(np.sign(d2y_dx2)))[0]
+        post_peak_crossings = zero_crossings[zero_crossings > noise_peak_idx]
+
+        if len(post_peak_crossings) > 0:
+            noise_inflection_idx = post_peak_crossings[0]  # First zero-crossing right after the peak
         else:
-            noise_peak_idx = np.argmax(smoothed_log_y)
+            noise_inflection_idx = noise_peak_idx + 5  # Fallback if no clean crossing is found
 
-        # 6. Extract maximum 2nd derivative occurring *after* the selected peak
-        post_peak_d2y = d2y_dx2[noise_peak_idx:]
-        
-        if len(post_peak_d2y) == 0:
-            raise ValueError("Selected intensity range peak sits at the edge of data; cannot trace decay.")
-            
-        max_curvature_relative_idx = np.argmax(post_peak_d2y)
-        inflection_idx = noise_peak_idx + max_curvature_relative_idx
+        axon_threshold = bin_centers[noise_inflection_idx]
 
-        # 7. Reverse the logarithm base-10 scale
-        #axon_threshold = 10**log_x[inflection_idx]
-        axon_threshold = 10**log_x[noise_peak_idx]
-        #print('max_curvature_relative_idx', 10**log_x[max_curvature_relative_idx])
-        #print('noise_peak_idx', 10**log_x[noise_peak_idx])      
         img[img < axon_threshold] = 0
 
         return img, float(axon_threshold)
@@ -319,11 +307,8 @@ class Parsedata:
                 masked_image = cv2.bitwise_and(image, mask)
                 x, y, w, h = cv2.boundingRect(polygon)
                 cropped_image = masked_image[y:y+h, x:x+w]
-                #ids, counts = np.unique(cropped_image, return_counts=True)
                 #print(f"Section: {section_number} {cropped_image.dtype=} {cropped_image.shape=} {cropped_image.max()=}")
                 #print(f"{x=}, {y=}, {w=}, {h=}")
-                #print('ids', ids)
-                #print('counts', counts)
                 tifffile.imwrite(
                     cropped_outpath,
                     cropped_image,
@@ -331,7 +316,14 @@ class Parsedata:
                     photometric="minisblack",
                     compression="LZW",
                 )
-                axon_image, threshold = self.extract_axon_threshold(cropped_image, intensity_range=(200,3000))
+                try:
+                    axon_image, threshold = self.extract_axon_threshold(cropped_image)
+                except Exception as e:
+                    print(f'Could not find threshold for {tifname} ')
+                    print(e)
+                    #print('ids', ids)
+                    #print('counts', counts)
+                    axon_image = cropped_image.copy()
                 axon_image = self.remove_white_objects(axon_image, threshold, min_size=10)
                 masked_image[y:y+h, x:x+w] = axon_image
 
