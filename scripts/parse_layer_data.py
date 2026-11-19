@@ -34,12 +34,12 @@ from authentication.models import User
 M_UM_SCALE = 1000000
 
 class Parsedata:
-    def __init__(self, id=None, layer_type=None, layer_name=None, downsample=True, debug=False):
+    def __init__(self, animal=None, id=None, layer_type=None, layer_name=None, downsample=True, debug=False):
         self.id = id
         self.layer_type = layer_type
         self.layer_name = layer_name
         self.debug = debug
-        self.animal = None
+        self.animal = animal
         self.downsample = downsample
         self.prep_path = "/net/birdstore/Active_Atlas_Data/data_root/pipeline_data"
 
@@ -229,11 +229,13 @@ class Parsedata:
                 annotation_type = annotation.get("type")
 
                 if annotation_type == "volume" and annotation.get("id") is not None:
+                    print(f'Found volume annotation in layer {layer_name} with ID {annotation["id"]}')
                     volume_id = annotation["id"]
                     description = annotation.get("description", "NA")
                     volume_layers.append((layer_name, volume_id, description))
 
                 elif annotation_type == "polygon":
+                    print(f'Found polygon annotation in layer {layer_name} with ID {annotation.get("id")}')
                     polygon_id = annotation.get("id")
                     parent_id = annotation.get("parentAnnotationId")
 
@@ -244,6 +246,7 @@ class Parsedata:
                             polygon_ids_by_volume[parent_id].append(polygon_id)
 
                 elif annotation_type == "line":
+                    print(f'Found line annotation in layer {layer_name} with ID {annotation.get("id")}')
                     parent_id = annotation.get("parentAnnotationId")
                     point = annotation.get("pointA")
 
@@ -307,8 +310,6 @@ class Parsedata:
                 masked_image = cv2.bitwise_and(image, mask)
                 x, y, w, h = cv2.boundingRect(polygon)
                 cropped_image = masked_image[y:y+h, x:x+w]
-                #print(f"Section: {section_number} {cropped_image.dtype=} {cropped_image.shape=} {cropped_image.max()=}")
-                #print(f"{x=}, {y=}, {w=}, {h=}")
                 tifffile.imwrite(
                     cropped_outpath,
                     cropped_image,
@@ -979,19 +980,16 @@ class Parsedata:
 
 
     def histogram_maker(self):
-        input_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/polygons")
+        input_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/cropped")
         if not os.path.exists(input_path):
             print(f'Input path missing: {input_path}')
             exit(1)
-        output_path = os.path.join(self.prep_path, f"{self.animal}/www/histogram/roi")
+        output_path = os.path.join(self.prep_path, f"{self.animal}/preps/C2/histogram")
         os.makedirs(output_path, exist_ok=True)
         infiles = sorted(os.listdir(input_path))
         for infile in infiles:
-            pngfile = infile.replace("tif", "png")
+            pngfile = infile.replace(".tif", "ylog.png")
             outfile_path = os.path.join(output_path, pngfile)
-            if os.path.exists(outfile_path):
-                print(f'Histogram already exists: {outfile_path}')
-                continue
             image_inpath = os.path.join(input_path, infile)
             with tifffile.TiffFile(image_inpath) as tif:
                 image = tif.asarray()
@@ -1001,15 +999,16 @@ class Parsedata:
 
             # Create and save histogram
             fig, ax = plt.subplots(figsize=(10, 6))
+
             try:
-                ax.hist(flat, bins=200, range=(0, 2000), color="r")
+                ax.hist(flat, bins=200, range=(0,20000), color="r")
             except:
                 plt.close(fig)
                 continue
-            # ax.set_yscale('log')
-            ax.grid(axis="y", alpha=0.75)
+            ax.set_yscale('log')
+            #ax.set_xscale('log')
             ax.set_xlabel("Value")
-            ax.set_ylabel("Frequency")
+            ax.set_ylabel("Frequency (Log)")
             ax.set_title(f"ROI in {infile}", fontsize=8)
             plt.style.use("ggplot")
             fig.savefig(outfile_path, bbox_inches="tight")
@@ -1633,6 +1632,7 @@ def create_json_header():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Work on Animal')
     parser.add_argument('--id', help='Enter ID', required=False, default=None, type=int)
+    parser.add_argument('--animal', help='Enter animal', required=True, type=str)
     parser.add_argument('--task', help='Enter task', required=True, type=str)
     parser.add_argument('--layer_type', help='Enter layer type', required=False, type=str)   
     parser.add_argument('--layer_name', help='Enter layer name', required=False, type=str)
@@ -1641,6 +1641,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    animal = str(args.animal).strip()
     task = str(args.task).strip().lower()
     layer_type = str(args.layer_type).strip()
     layer_name = str(args.layer_name).strip()
@@ -1648,7 +1649,7 @@ if __name__ == '__main__':
     debug = bool({'true': True, 'false': False}[args.debug.lower()])    
     id = args.id
 
-    pipeline = Parsedata(id=id, layer_type=layer_type, layer_name=layer_name, downsample=downsample, debug=debug)
+    pipeline = Parsedata(animal=animal, id=id, layer_type=layer_type, layer_name=layer_name, downsample=downsample, debug=debug)
 
     function_mapping = {
             "session": pipeline.parse_annotation,
@@ -1660,6 +1661,7 @@ if __name__ == '__main__':
             "create_roi": pipeline.create_roi,
             "axon_detector": pipeline.axon_detector,
             "combined_histogram_maker": pipeline.combined_histogram_maker,
+            "histograms": pipeline.histogram_maker,
             "boxes": pipeline.parse_boxes
         }
 

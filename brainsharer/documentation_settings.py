@@ -2,6 +2,7 @@ import os
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = 'localsettingsfordocumentationsonotimportant'
+from brainsharer.local_settings import DATABASES
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -19,10 +20,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'authentication',
     'brain',
-    'mouselight',
     'neuroglancer',
     'rest_framework',
-    'django_extensions',
 ]
 
 
@@ -70,6 +69,7 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
 
 ##### django extensions graph models
 GRAPH_MODELS = {

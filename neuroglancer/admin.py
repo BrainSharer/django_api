@@ -16,11 +16,11 @@ from plotly.offline import plot
 import plotly.express as px
 import pandas as pd
 
-from brain.models import ScanRun
+from brain.models import ScanRun, SlideCziToTif
 from brainsharer.admin_extensions import AtlasAdminModel, ExportCsvMixin
 from neuroglancer.annotation_session_manager import M_UM_SCALE
-from neuroglancer.models import AnnotationLabel, AnnotationSession, NeuroglancerLog, \
-    NeuroglancerState, Points, AnnotationData, resort_points
+from neuroglancer.models import MICRON, AnnotationLabel, AnnotationSession, NeuroglancerLog, \
+    NeuroglancerState, Points, AnnotationData, RegionOfInterest, resort_points, CellData
 from neuroglancer.dash_view import dash_scatter_view
 
 
@@ -187,7 +187,7 @@ class PointsAdmin(admin.ModelAdmin):
         """Shows the HTML for the link to the graph of data."""
         return mark_safe(
             f'<a href="{reverse("admin:points-3D-graph", args=[obj.pk])}">3D Graph</a>&nbsp;' 
-            f'<a href="{reverse("admin:polygon-data", args=[obj.pk])}">Polygon Area/Counts</a>&nbsp;' 
+            f'<a href="{reverse("admin:polygon-data", args=[obj.pk])}">Cloud Polygon Area/Counts</a>&nbsp;' 
             f'<a href="{reverse("admin:points-data", args=[obj.pk])}">Data</a>'
         )
 
@@ -249,7 +249,7 @@ class PointsAdmin(admin.ModelAdmin):
             return HttpResponse(status=404, content=msg)
 
         df = neuroglancerState.polygons
-        result = 'No data'
+        result = 'No cloud/polygon data available'
         display = False
         if df is not None and len(df) > 0:
             display = True
@@ -452,6 +452,52 @@ class AnnotationLabelAdmin(AtlasAdminModel, ExportCsvMixin):
         """Formats the date nicely."""
         return datetime_format(obj.created)
     created_display.short_description = 'Created'
+
+class CellDataInline(admin.TabularInline):
+    """
+    This class describes the inline TIFF files that are associated with each slide.
+    You can order, set inactive, and view each TIFF file associated with a slide.
+    """
+
+    model = CellData
+    fields = ('com_x', 'com_y', 'area', 'com_x_pixel', 'com_y_pixel')
+    readonly_fields = ['area', 'com_x_pixel', 'com_y_pixel']
+    ordering = ['-area']
+    extra = 0
+
+
+    def area(self, obj):
+        return round(obj.com_x,2)
+
+
+@admin.register(RegionOfInterest)
+class RegionOfInterestAdmin(AtlasAdminModel, ExportCsvMixin):
+    """Class that provides admin capability for managing a region of the brain. This
+    was also called a structure.
+    """
+
+    list_display = ('animal', 'state', 'layer_name', 'volume_name', 'section', 'area_um', 'created_display')
+    ordering = ['animal', 'state', 'layer_name','section']
+    readonly_fields = ['created']
+    search_fields = ['animal', 'volume_name', 'layer_name']
+
+    inlines = [CellDataInline,]
+
+    def created_display(self, obj):
+        """Formats the date nicely."""
+        return datetime_format(obj.created)
+    created_display.short_description = 'Created'
+
+    def area_um(self, obj):
+        return f"{round(obj.area):,}"
+    
+    def has_add_permission(self, request, obj=None):
+        """Returns false as the data is readonly"""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Returns false as the data is readonly"""
+        return False
 
 
 def create_one_dataframe(points, UUID, annotation_type='point', orders=0, description="", xy_resolution=1, z_resolution=1):

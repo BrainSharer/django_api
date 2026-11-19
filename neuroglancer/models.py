@@ -10,7 +10,6 @@ from django.template.defaultfilters import truncatechars
 from authentication.models import Lab
 from brain.models import AtlasModel, Animal, ScanRun
 from django_mysql.models import EnumField
-from itertools import zip_longest
 
 LAUREN_ID = 16
 MANUAL = 1
@@ -116,7 +115,7 @@ class NeuroglancerState(models.Model):
                     cloud_parent_ids = list(set(row["id"] for row in annotations if "id" in row
                                          and 'type' in row
                                          and row['type'] == 'cloud'))
-
+                    print(f"Processing layer '{name}' with {len(cloud_parent_ids)} unique cloud IDs.")
                     for UUID in cloud_parent_ids:
                         descriptions = [row["description"] for row in annotations if "description" in row 
                                             and 'type' in row 
@@ -128,6 +127,7 @@ class NeuroglancerState(models.Model):
                         else:
                             descriptions = descriptions[0].replace('\n', ', ')
                         points = [ row['point'] for row in annotations if 'point' in row and "parentAnnotationId" in row and row["parentAnnotationId"] == UUID]
+                        print(f"Cloud ID '{UUID}' has {len(points)} points.")
                         df = create_one_dataframe(points, name, UUID, 'cloud', 0, descriptions, xy_resolution, z_resolution)
                         df = df[['Layer', 'Type', 'Labels', 'UUID', 'Order', 'X', 'Y', 'Section', 'Xum', 'Yum', 'Zum']]
                         dfs.append(df)
@@ -195,16 +195,18 @@ class NeuroglancerState(models.Model):
         Convert Neuroglancer annotation layers into a polygon summary DataFrame.
 
         Assumptions:
+        
         - Volume annotations have type='volume' and an 'id'.
         - Polygon annotations have type='polygon', an 'id', and a
-            'parentAnnotationId' referring to a volume.
+          'parentAnnotationId' referring to a volume.
         - Line annotations have type='line', pointA=[x, y, z], and a
-            'parentAnnotationId' referring to a polygon.
+          'parentAnnotationId' referring to a polygon.
         - Cloud layers contain annotations with type='point' and
-            point=[x, y, z].
+          point=[x, y, z].
 
         Returns:
             pandas.DataFrame with OUTPUT_COLUMNS.
+        
         """
         if not self.neuroglancer_state:
             return None
@@ -223,8 +225,9 @@ class NeuroglancerState(models.Model):
         for layer in self.neuroglancer_state.get("layers", []):
             if layer.get("type") != "annotation":
                 continue
+            layer_name = layer.get("name", "n/a")
+            layer_type = layer.get("type", "n/a")
 
-            layer_name = layer.get("name", "")
             annotations = layer.get("annotations") or []
             description = "NA"
             for annotation in annotations:
@@ -306,11 +309,13 @@ class NeuroglancerState(models.Model):
 
         # Process only polygons belonging to each volume.
         for layer_name, volume_id, description in volume_layers:
+            print(f"Processing volume '{description}' (ID: {volume_id}) in layer '{layer_name}'.")
             for polygon_id in polygon_ids_by_volume.get(volume_id, []):
                 lines = lines_by_polygon.get(polygon_id, [])
 
                 if not lines:
                     continue
+
 
                 line_array = np.asarray(lines, dtype=np.float64)
                 polygon_xy = line_array[:, :2] * xy_resolution
@@ -523,6 +528,56 @@ class AnnotationSession(AtlasModel):
         if self.annotation is not None and 'type' in self.annotation:
             annotation_type = self.annotation['type']
         return annotation_type
+
+
+class RegionOfInterest(AtlasModel):
+    """This model describes a region of interest in the brain."""
+    id = models.BigAutoField(primary_key=True)
+    animal = models.ForeignKey(Animal, models.CASCADE, null=True, db_column="FK_prep_id", verbose_name="Animal")
+    state = models.ForeignKey(NeuroglancerState, models.CASCADE, db_column="FK_state_id",
+                               verbose_name="Neuroglancer state", blank=False, null=False)
+    layer_name = models.CharField(max_length=50, blank=False, null=False)
+    volume_name = models.CharField(max_length=50, blank=False, null=False)
+    section = models.IntegerField(blank=False, null=False)
+    com_x = models.FloatField(default=0.00, verbose_name="Center of Mass X µm")
+    com_y = models.FloatField(default=0.00, verbose_name="Center of Mass Y µm")
+    area = models.FloatField(default=0.00, verbose_name="Area µm²")
+    contour_count = models.IntegerField(default=0)
+
+    class Meta:
+        managed = False
+        db_table = 'region_of_interest'
+        verbose_name = 'Region of interest'
+        verbose_name_plural = 'Regions of interest'
+
+
+
+class CellData(models.Model):
+    """Model corresponding to the cell data table in the database
+    """
+    
+    id = models.BigAutoField(primary_key=True)
+    roi = models.ForeignKey(RegionOfInterest, models.CASCADE, null=True, db_column="FK_roi_id", verbose_name="Region of interest")
+    com_x = models.FloatField(default=0.00, verbose_name="Center of Mass X")
+    com_y = models.FloatField(default=0.00, verbose_name="Center of Mass Y")
+    area = models.FloatField(default=0.00, verbose_name="Area")
+
+    class Meta:
+        managed = False
+        db_table = 'cell_data'
+        verbose_name = 'Cell data'
+        verbose_name_plural = 'Cell data'
+
+    def __str__(self):
+        return ""
+
+    @property
+    def com_x_pixel(self):
+        return int(round(self.com_x / 0.325))
+    @property
+    def com_y_pixel(self):
+        return int(round(self.com_y / 0.325))
+
 
 
 class AnnotationData(AnnotationSession):
