@@ -542,6 +542,7 @@ class RegionOfInterest(AtlasModel):
     com_x = models.FloatField(default=0.00, verbose_name="Center of Mass X µm")
     com_y = models.FloatField(default=0.00, verbose_name="Center of Mass Y µm")
     area = models.FloatField(default=0.00, verbose_name="Area µm²")
+    threshold = models.IntegerField(default=0, verbose_name="Threshold")
     contour_count = models.IntegerField(default=0)
 
     class Meta:

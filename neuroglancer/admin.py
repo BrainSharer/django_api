@@ -476,10 +476,10 @@ class RegionOfInterestAdmin(AtlasAdminModel, ExportCsvMixin):
     was also called a structure.
     """
 
-    list_display = ('animal', 'state', 'layer_name', 'volume_name', 'section', 'area_um', 'created_display')
+    list_display = ('animal', 'state', 'layer_name', 'volume_name', 'section', 'area_um', 'threshold', 'created_display')
     ordering = ['animal', 'state', 'layer_name','section']
     readonly_fields = ['created']
-    search_fields = ['animal', 'volume_name', 'layer_name']
+    search_fields = ['animal__prep_id', 'volume_name', 'layer_name']
 
     inlines = [CellDataInline,]
 
