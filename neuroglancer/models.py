@@ -7,6 +7,7 @@ import json
 import numpy as np
 import pandas as pd
 from django.template.defaultfilters import truncatechars
+
 from authentication.models import Lab
 from brain.models import AtlasModel, Animal, ScanRun
 from django_mysql.models import EnumField
@@ -551,6 +552,9 @@ class RegionOfInterest(AtlasModel):
         verbose_name = 'Region of interest'
         verbose_name_plural = 'Regions of interest'
 
+    def __str__(self):
+        return f"{self.animal.prep_id} volume:{self.volume_name}, section:{self.section}"
+
 
 
 class CellData(models.Model):
@@ -559,9 +563,9 @@ class CellData(models.Model):
     
     id = models.BigAutoField(primary_key=True)
     roi = models.ForeignKey(RegionOfInterest, models.CASCADE, null=True, db_column="FK_roi_id", verbose_name="Region of interest")
-    com_x = models.FloatField(default=0.00, verbose_name="Center of Mass X")
-    com_y = models.FloatField(default=0.00, verbose_name="Center of Mass Y")
-    area = models.FloatField(default=0.00, verbose_name="Area")
+    com_x = models.FloatField(default=0.00, verbose_name="Center of Mass X µm")
+    com_y = models.FloatField(default=0.00, verbose_name="Center of Mass Y µm")
+    area = models.FloatField(default=0.00, verbose_name="Area (square micrometers)")
 
     class Meta:
         managed = False
@@ -572,14 +576,8 @@ class CellData(models.Model):
     def __str__(self):
         return ""
 
-    @property
-    def com_x_pixel(self):
-        return int(round(self.com_x / 0.325))
-    @property
-    def com_y_pixel(self):
-        return int(round(self.com_y / 0.325))
 
-
+    
 
 class AnnotationData(AnnotationSession):
     """Model corresponding to the annotation points table in the database

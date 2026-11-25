@@ -12,6 +12,8 @@ from django.contrib import admin
 from django.forms import TextInput
 from django.urls import reverse, path
 from django.template.response import TemplateResponse
+from django import forms 
+
 from plotly.offline import plot
 import plotly.express as px
 import pandas as pd
@@ -453,6 +455,7 @@ class AnnotationLabelAdmin(AtlasAdminModel, ExportCsvMixin):
         return datetime_format(obj.created)
     created_display.short_description = 'Created'
 
+
 class CellDataInline(admin.TabularInline):
     """
     This class describes the inline TIFF files that are associated with each slide.
@@ -460,14 +463,37 @@ class CellDataInline(admin.TabularInline):
     """
 
     model = CellData
-    fields = ('com_x', 'com_y', 'area', 'com_x_pixel', 'com_y_pixel')
-    readonly_fields = ['area', 'com_x_pixel', 'com_y_pixel']
+    fields = ('_area', 'com_pixel_tuple', 'com_um_tuple')
+    readonly_fields = ['_area', 'com_pixel_tuple', 'com_um_tuple']
     ordering = ['-area']
     extra = 0
 
 
-    def area(self, obj):
-        return round(obj.com_x,2)
+    def has_add_permission(self, request, obj=None):
+        """Returns false as the data is readonly"""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Returns false as the data is readonly"""
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """Returns false as the data is readonly"""
+        return False
+
+    def com_pixel_tuple(self, obj=None):
+        com = f"x={obj.com_x/0.325:.0f}, y={obj.com_y/0.325:.0f}"
+        return com
+    com_pixel_tuple.short_description = 'Center of mass in pixels'
+
+    def com_um_tuple(self, obj=None):
+        com = f"x={obj.com_x:.2f}, y={obj.com_y:.2f}"
+        return com
+    com_um_tuple.short_description = 'Center of mass in micrometers'
+
+    def _area(self, obj=None):
+        return round(obj.area,2)
+    _area.short_description = "Area (square micrometers)"
 
 
 @admin.register(RegionOfInterest)
@@ -475,10 +501,9 @@ class RegionOfInterestAdmin(AtlasAdminModel, ExportCsvMixin):
     """Class that provides admin capability for managing a region of the brain. This
     was also called a structure.
     """
-
+ 
     list_display = ('animal', 'state', 'layer_name', 'volume_name', 'section', 'area_um', 'threshold', 'created_display')
     ordering = ['animal', 'state', 'layer_name','section']
-    readonly_fields = ['created']
     search_fields = ['animal__prep_id', 'volume_name', 'layer_name']
 
     inlines = [CellDataInline,]
@@ -494,10 +519,15 @@ class RegionOfInterestAdmin(AtlasAdminModel, ExportCsvMixin):
     def has_add_permission(self, request, obj=None):
         """Returns false as the data is readonly"""
         return False
-
+    
     def has_change_permission(self, request, obj=None):
         """Returns false as the data is readonly"""
         return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Returns false as the data is readonly"""
+        return False
+
 
 
 def create_one_dataframe(points, UUID, annotation_type='point', orders=0, description="", xy_resolution=1, z_resolution=1):
